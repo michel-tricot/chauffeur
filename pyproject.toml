@@ -2,7 +2,7 @@
 
 [project]
 name = "chauffeur"
-version = "0.11.2"
+version = "0.12.0"
 description = "Control a local Chromium-family browser: launch it your way, patch and load extensions, talk to it both ways"
 readme = "README.md"
 license = "MIT"

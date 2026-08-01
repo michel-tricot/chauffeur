@@ -103,11 +103,19 @@ spec = LaunchSpec(
     browser="auto",                     # or "chrome" / a binary Path
     headless=True,
     devtools_port=0,                    # 0 = pick a free port
-    window=Window(size=(390, 320), position="center"),  # or "dialog": above center
+    window=Window(size=(390, 320), position="center"),  # or "top" / "dialog" (above center)
     minimal_footprint=True,             # trim the process down
     show_browser_ui=False,              # present as an app/dialog, not a browser
 )
+
+async with Browser(spec) as browser:    # launches here; exiting closes it
+    await browser.navigate("https://example.com")
 ```
+
+Entering the `async with` block launches the browser, connects over CDP, and
+installs the `py_chauffeur` channel; leaving it shuts everything down. If you
+only want the process — no channel, no CDP client — bare `launch(spec)` returns
+a `BrowserHandle` with the DevTools port and a `terminate()` method.
 
 The profile is required on purpose: there is no default, so a launch can
 never silently land on the browser profile you use daily. Pointing it at a
