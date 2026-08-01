@@ -2,10 +2,9 @@
 
 **A Python control plane for a local Chromium browser you launch and own.**
 
-`chauffeur` is a control plane, not an automation framework: no selectors, no
-waits, no daemon. You decide how the browser spins up, patch and load
-extensions, and talk to it in both directions with a decorator-based command
-API. Starting and stopping the browser is your job, not the library's.
+`chauffeur` is a **control plane, not an automation framework**. You decide how
+the browser spins up, patch and load extensions, and talk to it in both
+directions with a decorator-based command API.
 
 ## Why chauffeur?
 
