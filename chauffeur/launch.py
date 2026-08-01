@@ -33,7 +33,7 @@ class LaunchError(RuntimeError):
 
     ``returncode`` is the browser's exit code when it died before the endpoint
     came up (its most common cause: another browser already holds the profile,
-    so Chrome's process singleton makes the new one exit immediately); None
+    so Chrome's process singleton makes the new one exit immediately); `None`
     when the process kept running but the endpoint never became ready.
     """
 
@@ -209,7 +209,7 @@ class BrowserHandle:
     # identifies that tab among session-restored ones.
     _primary_url: str | None = None
     extensions: tuple[Path, ...] = ()
-    """Built extension dirs, ready for Extensions.loadUnpacked over CDP."""
+    """Built extension dirs, ready for `Extensions.loadUnpacked` over CDP."""
 
     @property
     def running(self) -> bool:
@@ -217,7 +217,7 @@ class BrowserHandle:
         return self.proc.poll() is None
 
     def terminate(self, timeout: float = 5.0) -> None:
-        """Stop the process (SIGTERM, then SIGKILL after ``timeout``) and
+        """Stop the process (`SIGTERM`, then `SIGKILL` after ``timeout``) and
         release launch-scoped resources such as extracted packaged pages."""
         try:
             if self.running:
@@ -233,6 +233,14 @@ class BrowserHandle:
 
 
 def launch(spec: LaunchSpec, *, ready_timeout: float = 15.0, _defer_page: bool = False) -> BrowserHandle:
+    """Spawn a browser process from ``spec`` and return its `BrowserHandle`.
+
+    Blocks until the DevTools endpoint answers; raises `LaunchError` after
+    ``ready_timeout`` seconds, or as soon as the process exits (most commonly
+    because another browser already holds the profile). The caller owns the
+    handle and decides when it dies (`terminate()`). Extensions are built but
+    not loaded — loading needs a CDP connection, which `Browser` layers on top.
+    """
     # _defer_page is Browser.start()'s protocol (launch on a blank page, navigate
     # after the channel is wired), not part of the public launch contract.
     info = resolve_browser(spec.browser)

@@ -70,8 +70,8 @@ class CDPClient:
         session_id: str | None = None,
         timeout: float = 30.0,
     ) -> dict:
-        """Send a CDP command and return its result; raises CDPError when the
-        browser rejects it. session_id routes to an attached target's session."""
+        """Send a CDP command and return its result; raises `CDPError` when the
+        browser rejects it. `session_id` routes to an attached target's session."""
         self._next_id += 1
         msg_id = self._next_id
         msg: dict[str, Any] = {"id": msg_id, "method": method, "params": params or {}}
@@ -86,14 +86,14 @@ class CDPClient:
             self._pending.pop(msg_id, None)
 
     def on(self, event: str, handler: Callable, *, session_id: str | None = None) -> None:
-        """Register a listener for a CDP event; handler(params) may be a coroutine.
+        """Register a listener for a CDP event; `handler(params)` may be a coroutine.
 
-        session_id=None receives the event from every session.
+        `session_id=None` receives the event from every session.
         """
         self._listeners.setdefault((event, session_id), []).append(handler)
 
     def off(self, event: str, handler: Callable, *, session_id: str | None = None) -> None:
-        """Remove a listener registered with on(); unknown handlers are ignored."""
+        """Remove a listener registered with `on()`; unknown handlers are ignored."""
         handlers = self._listeners.get((event, session_id), [])
         if handler in handlers:
             handlers.remove(handler)
@@ -161,7 +161,7 @@ class CDPClient:
         return result["targetId"]
 
     async def attach(self, target_id: str) -> str:
-        """Attach to a target (flattened session); returns the session id for send()."""
+        """Attach to a target (flattened session); returns the session id for `send()`."""
         result = await self.send("Target.attachToTarget", {"targetId": target_id, "flatten": True})
         return result["sessionId"]
 
@@ -176,7 +176,7 @@ class CDPClient:
         await self._closed.wait()
 
     async def close(self) -> None:
-        """Close the WebSocket; pending commands fail with CDPError."""
+        """Close the WebSocket; pending commands fail with `CDPError`."""
         await self._ws.close()
         with contextlib.suppress(Exception):
             await self._reader

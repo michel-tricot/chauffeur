@@ -46,9 +46,9 @@ async def _browser_close(port: int) -> None:
 
 
 def close_running_browser(profile: Path, timeout: float = 5.0) -> bool:
-    """Ask a browser still running on this profile to exit; True if one was.
+    """Ask a browser still running on this profile to exit; `True` if one was.
 
-    Orderly Browser.close, so profile state is flushed on the way out.
+    Orderly `Browser.close`, so profile state is flushed on the way out.
     Synchronous — do not call from inside a running event loop.
     """
     port = running_devtools_port(profile)
@@ -72,7 +72,7 @@ def wipe_profile(profile: Path) -> bool:
 
     A browser still running on the profile (e.g. leaked by a killed consumer)
     is asked to exit first, so it cannot rewrite state on its way out. Returns
-    True if anything existed. Raises OSError when the profile directory cannot
+    `True` if anything existed. Raises `OSError` when the profile directory cannot
     be fully removed.
     """
     profile = profile.expanduser()

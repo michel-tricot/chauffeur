@@ -47,12 +47,12 @@ ServeReason = Literal["until", "page-closed", "connection-lost"]
 
 @dataclass(frozen=True)
 class Caller:
-    """Who invoked the currently-running @command handler."""
+    """Who invoked the currently-running `@command` handler."""
 
     session_id: str
     """The CDP session the call arrived on."""
     extension_id: str | None = None
-    """The calling extension's id; None for the primary page."""
+    """The calling extension's id; `None` for the primary page."""
 
     @property
     def is_extension(self) -> bool:
@@ -64,30 +64,40 @@ _CALLER: contextvars.ContextVar[Caller | None] = contextvars.ContextVar("chauffe
 
 
 def caller() -> Caller | None:
-    """Inside a @command handler, the target that invoked it (the primary page,
-    or an extension service worker with its extension_id). None outside dispatch."""
+    """Inside a `@command` handler, the target that invoked it (the primary page,
+    or an extension service worker with its `extension_id`). `None` outside dispatch."""
     return _CALLER.get()
 
 
 class JSError(RuntimeError):
     """JavaScript evaluated in the page threw.
 
-    Distinct from CDPError (the protocol/transport failed) so callers can tell
+    Distinct from `CDPError` (the protocol/transport failed) so callers can tell
     "the page's code broke" from "the browser is gone".
     """
 
 
 class Browser:
+    """An async browser session: launches from a `LaunchSpec`, connects over
+    CDP, and installs a bidirectional `py_chauffeur` channel into the page
+    (and, when asked, into extension service workers).
+
+    Register handlers with `@browser.command()` / `@browser.on(...)`, enter
+    the session with ``async with`` (which calls `start()`), then drive the
+    page with `call()` / `evaluate()` / `navigate()` and block in `serve()`
+    until the user closes the window.
+    """
+
     def __init__(self, spec: LaunchSpec) -> None:
         self._spec = spec
         self._registry = CommandRegistry()
         self._cdp_listeners: list[tuple[str, Callable]] = []
         self.handle: BrowserHandle | None = None
-        """The launched process (port, terminate()); None until start()."""
+        """The launched process (`port`, `terminate()`); `None` until `start()`."""
         self.cdp: CDPClient | None = None
-        """The raw CDP client, for anything the facade doesn't cover; None until start()."""
+        """The raw CDP client, for anything the facade doesn't cover; `None` until `start()`."""
         self.extension_ids: list[str] = []
-        """Ids of the loaded extensions, in LaunchSpec.extensions order."""
+        """Ids of the loaded extensions, in `LaunchSpec.extensions` order."""
         self._session_id: str | None = None
         self._target_id: str | None = None
         # extension_id -> attached service-worker session id, filled by
@@ -103,11 +113,11 @@ class Browser:
     # -- decorator API -------------------------------------------------------
 
     def command(self, name: str | Callable | None = None, *, strict: bool = False):
-        """Register a handler for a browser-initiated command (py_chauffeur.call/py_chauffeur.notify)."""
+        """Register a handler for a browser-initiated command (`py_chauffeur.call` / `py_chauffeur.notify`)."""
         return self._registry.command(name, strict=strict)
 
     def on(self, event: str) -> Callable[[Callable], Callable]:
-        """Register a listener for a raw CDP event (delivered as a dict)."""
+        """Register a listener for a raw CDP event (delivered as a `dict`)."""
 
         def register(fn: Callable) -> Callable:
             self._cdp_listeners.append((event, fn))
@@ -120,7 +130,7 @@ class Browser:
     # -- python -> browser ---------------------------------------------------
 
     async def call(self, command: str, params: Any = None, *, timeout: float = 30.0) -> Any:
-        """Invoke a JS handler registered via py_chauffeur.on(command, ...) in the primary page."""
+        """Invoke a JS handler registered via `py_chauffeur.on(command, ...)` in the primary page."""
         assert self._session_id, "browser not started"
         return await self._call(self._session_id, command, params, timeout=timeout)
 
@@ -154,11 +164,11 @@ class Browser:
         return await self._evaluate(session_id, f"py_chauffeur._handle({envelope})", timeout=timeout)
 
     async def navigate(self, url: str, *, wait: Literal["load"] | None = None, timeout: float = 30.0) -> None:
-        """Navigate the primary target; raises CDPError when Chrome refuses the
+        """Navigate the primary target; raises `CDPError` when Chrome refuses the
         navigation (bad scheme, net error).
 
-        wait="load" blocks until the destination frame finishes loading
-        (Page.frameStoppedLoading), so an evaluate() right after sees the
+        `wait="load"` blocks until the destination frame finishes loading
+        (`Page.frameStoppedLoading`), so an `evaluate()` right after sees the
         loaded document instead of racing the navigation.
         """
         assert self.cdp and self._session_id, "browser not started"
@@ -201,7 +211,7 @@ class Browser:
 
     async def start(self) -> Browser:
         """Launch the browser, connect over CDP, load extensions, and install
-        the py_chauffeur channel; returns self. ``async with`` calls this."""
+        the `py_chauffeur` channel; returns `self`. ``async with`` calls this."""
         # _defer_page: the destination (spec.url) starts on a unique blank page
         # and is navigated below, after the channel exists — page scripts can use
         # py_chauffeur right away, and the blank page identifies the launch tab
@@ -314,15 +324,15 @@ class Browser:
 
     def extension_ready(self, extension_id: str) -> bool:
         """Whether the extension's service worker has attached and its
-        py_chauffeur channel is installed — i.e. whether extension() will
+        `py_chauffeur` channel is installed — i.e. whether `extension()` will
         succeed. Workers attach lazily and can be evicted/respawned, so poll
         this before the first call rather than assuming readiness at load."""
         return extension_id in self._ext_sessions
 
     def extension(self, extension_id: str) -> ExtensionChannel:
-        """A py_chauffeur channel into a loaded extension's service worker (for
+        """A `py_chauffeur` channel into a loaded extension's service worker (for
         Python -> worker calls). Inbound worker -> Python calls arrive at
-        @command handlers automatically; caller() tells them which extension."""
+        `@command` handlers automatically; `caller()` tells them which extension."""
         session_id = self._ext_sessions.get(extension_id)
         if session_id is None:
             raise LookupError(f"no attached service worker for extension {extension_id}")
@@ -369,12 +379,12 @@ class Browser:
     async def serve(self, *, until: asyncio.Event | None = None) -> ServeReason:
         """Block until the primary window/tab is closed, the browser
         connection drops, or `until` is set; returns which of those happened
-        ("page-closed", "connection-lost", or "until").
+        (`"page-closed"`, `"connection-lost"`, or `"until"`).
 
         Watching the window (not just the connection) matters: on macOS the
         browser process outlives its last window, so the connection alone
-        never signals "the user closed the app". After serve() returns,
-        aclose() terminates the browser process.
+        never signals "the user closed the app". After `serve()` returns,
+        `aclose()` terminates the browser process.
         """
         assert self.cdp, "browser not started"
         waiters = [
@@ -395,7 +405,7 @@ class Browser:
         return "connection-lost"
 
     async def aclose(self) -> None:
-        """Shut the browser down: orderly Browser.close (flushes profile
+        """Shut the browser down: orderly `Browser.close` (flushes profile
         state), then terminate the process and drop the CDP connection."""
         try:
             if self.cdp is not None:
@@ -446,13 +456,13 @@ def _wants_channel(entry: ExtensionSpec | Path) -> bool:
 
 
 class ExtensionChannel:
-    """A py_chauffeur channel into one extension service worker.
+    """A `py_chauffeur` channel into one extension service worker.
 
-    call()/evaluate() run against the worker's session (reusing the same
+    `call()` / `evaluate()` run against the worker's session (reusing the same
     per-session core as the primary page), so Python can invoke
-    py_chauffeur.on(...) handlers the worker registered. Inbound (worker ->
-    Python via py_chauffeur.call) lands in the shared @command registry
-    automatically; caller() tells a handler which extension called it.
+    `py_chauffeur.on(...)` handlers the worker registered. Inbound (worker ->
+    Python via `py_chauffeur.call`) lands in the shared `@command` registry
+    automatically; `caller()` tells a handler which extension called it.
     """
 
     def __init__(self, browser: Browser, session_id: str) -> None:
@@ -464,5 +474,5 @@ class ExtensionChannel:
         return await self._browser._evaluate(self._session_id, expression, await_promise=await_promise, timeout=timeout)
 
     async def call(self, command: str, params: Any = None, *, timeout: float = 30.0) -> Any:
-        """Invoke a JS handler the worker registered via py_chauffeur.on(command, ...)."""
+        """Invoke a JS handler the worker registered via `py_chauffeur.on(command, ...)`."""
         return await self._browser._call(self._session_id, command, params, timeout=timeout)

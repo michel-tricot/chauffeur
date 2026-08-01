@@ -15,14 +15,14 @@ class BrowserNotFoundError(RuntimeError):
 @dataclass(frozen=True)
 class BrowserInfo:
     id: str
-    """Stable selector id: "chrome", "chromium", "brave", or "edge"."""
+    """Stable selector id: `"chrome"`, `"chromium"`, `"brave"`, or `"edge"`."""
     name: str
     """Human-readable browser name."""
     binary: Path
     """The browser executable."""
     data_dir: Path | None
     """Default user-data dir of the *installed* browser, used to warn when a
-    launch targets a real profile. None for custom binaries."""
+    launch targets a real profile. `None` for custom binaries."""
 
 
 def _macos_catalog() -> tuple[BrowserInfo, ...]:
@@ -81,11 +81,13 @@ def catalog() -> tuple[BrowserInfo, ...]:
 
 
 def installed_browsers() -> list[BrowserInfo]:
+    """The supported browsers actually installed on this machine, in catalog
+    order (`chrome`, `chromium`, `brave`, `edge`); `"auto"` picks the first."""
     return [b for b in catalog() if b.binary.exists()]
 
 
 def resolve_browser(selector: str | Path = "auto") -> BrowserInfo:
-    """Resolve "auto", a browser id/name, or an explicit binary path."""
+    """Resolve `"auto"`, a browser id/name, or an explicit binary path."""
     if isinstance(selector, Path):
         if not selector.exists():
             raise BrowserNotFoundError(f"browser binary not found: {selector}")

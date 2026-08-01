@@ -26,6 +26,15 @@ from chauffeur.spec import LaunchSpec
 
 
 class SyncBrowser:
+    """Synchronous facade over `Browser`: the same API without async code.
+
+    The async core runs on a background thread's event loop and every method
+    bridges into it, so nothing here needs `await`; enter the session with
+    ``with`` (which calls `start()`). Registered `@command` / `@on` handlers
+    run on that loop thread, not the caller's — keep them quick and don't
+    block.
+    """
+
     def __init__(self, spec: LaunchSpec) -> None:
         self._async = Browser(spec)
         self._loop = asyncio.new_event_loop()
@@ -37,17 +46,17 @@ class SyncBrowser:
     # -- decorator API (forwarded; handlers run on the loop thread) -----------
 
     def command(self, name: str | Callable | None = None, *, strict: bool = False):
-        """Register a handler for a browser-initiated command (py_chauffeur.call/py_chauffeur.notify)."""
+        """Register a handler for a browser-initiated command (`py_chauffeur.call` / `py_chauffeur.notify`)."""
         return self._async.command(name, strict=strict)
 
     def on(self, event: str) -> Callable[[Callable], Callable]:
-        """Register a listener for a raw CDP event (delivered as a dict)."""
+        """Register a listener for a raw CDP event (delivered as a `dict`)."""
         return self._async.on(event)
 
     # -- python -> browser ---------------------------------------------------
 
     def call(self, command: str, params: Any = None, *, timeout: float = 30.0) -> Any:
-        """Invoke a JS handler registered via py_chauffeur.on(command, ...) in the primary page."""
+        """Invoke a JS handler registered via `py_chauffeur.on(command, ...)` in the primary page."""
         return self._run(self._async.call(command, params, timeout=timeout), timeout + 5)
 
     def evaluate(self, expression: str, *, await_promise: bool = True, timeout: float = 30.0) -> Any:
@@ -55,7 +64,7 @@ class SyncBrowser:
         return self._run(self._async.evaluate(expression, await_promise=await_promise, timeout=timeout), timeout + 5)
 
     def navigate(self, url: str, *, wait: Literal["load"] | None = None, timeout: float = 30.0) -> None:
-        """Navigate the primary target; wait="load" blocks until the destination loads."""
+        """Navigate the primary target; `wait="load"` blocks until the destination loads."""
         self._run(self._async.navigate(url, wait=wait, timeout=timeout), timeout + 5)
 
     def capture_user_agent(self) -> str | None:
@@ -64,18 +73,18 @@ class SyncBrowser:
 
     @property
     def handle(self) -> BrowserHandle | None:
-        """The launched process (port, terminate()); None until start()."""
+        """The launched process (`port`, `terminate()`); `None` until `start()`."""
         return self._async.handle
 
     @property
     def extension_ids(self) -> list[str]:
-        """Ids of the loaded extensions, in LaunchSpec.extensions order."""
+        """Ids of the loaded extensions, in `LaunchSpec.extensions` order."""
         return self._async.extension_ids
 
     # -- lifecycle -----------------------------------------------------------
 
     def start(self) -> SyncBrowser:
-        """Start the background event loop and launch the browser; returns self.
+        """Start the background event loop and launch the browser; returns `self`.
         ``with`` calls this."""
         self._thread.start()
         try:
@@ -87,8 +96,8 @@ class SyncBrowser:
 
     def serve(self, *, until: threading.Event | None = None) -> ServeReason:
         """Block the calling thread until the window/connection closes, or
-        ``until`` (a threading.Event) is set; returns why it stopped
-        ("page-closed", "connection-lost", or "until")."""
+        ``until`` (a `threading.Event`) is set; returns why it stopped
+        (`"page-closed"`, `"connection-lost"`, or `"until"`)."""
         stop = asyncio.Event()
         watcher: threading.Thread | None = None
         if until is not None:

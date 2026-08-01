@@ -236,7 +236,7 @@ def extensions_dir(profile: Path) -> Path:
 class ExtensionSpec:
     """A description of an extension to load: a source plus recorded patches.
 
-    The source is a local unpacked directory (pass a Path) or an id pulled
+    The source is a local unpacked directory (pass a `Path`) or an id pulled
     from the Chrome Web Store (`from_store`). The chained methods only
     record patches; nothing touches disk until `build_extension` runs,
     usually for you, when the spec is handed to ``LaunchSpec.extensions`` and
@@ -251,9 +251,9 @@ class ExtensionSpec:
         """Where the extension comes from: a local unpacked dir or the store."""
         self._patches: list[Callable[[Path], None]] = []
         self.worker_channel = worker_channel
-        """When driven by Browser, auto-attach a py_chauffeur channel into this
+        """When driven by `Browser`, auto-attach a `py_chauffeur` channel into this
         extension's service worker (so its code can call/handle commands and
-        browser.extension(id) works). False loads it without a channel."""
+        `browser.extension(id)` works). `False` loads it without a channel."""
 
     @classmethod
     def from_store(
@@ -286,8 +286,8 @@ class ExtensionSpec:
     def add_file(self, relative: str, content: str | bytes, *, overwrite: bool = False) -> ExtensionSpec:
         """Add a file to the extension (parents created automatically).
 
-        Refuses to clobber an existing file unless overwrite=True; to append
-        to or transform an existing file use append/patch/inject_config.
+        Refuses to clobber an existing file unless `overwrite=True`; to append
+        to or transform an existing file use `append` / `patch` / `inject_config`.
         """
 
         def patch(root: Path) -> None:
@@ -346,9 +346,9 @@ class ExtensionSpec:
 def build_extension(spec: ExtensionSpec, workdir: Path) -> Path:
     """Materialize ``spec`` into ``workdir`` and return it.
 
-    Copies the (possibly downloaded) source into workdir, then applies the
+    Copies the (possibly downloaded) source into ``workdir``, then applies the
     recorded patches. Idempotent: re-run to pick up a bumped local source (a
-    store download is cached beside workdir, unless the spec pins its own
+    store download is cached beside ``workdir``, unless the spec pins its own
     ``cache_dir``).
     """
     workdir = workdir.expanduser().resolve()
