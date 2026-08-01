@@ -266,6 +266,45 @@ Runnable, self-contained scripts live in [`examples/`](examples/), from a
 one-liner launch to a live-updating packaged UI and Web Store extension
 patching. Run any with `uv run examples/<name>/main.py`.
 
+## Contributing
+
+Contributions are welcome. The project uses [uv](https://docs.astral.sh/uv/)
+for everything. Set up a checkout:
+
+```bash
+git clone https://github.com/michel-tricot/chauffeur
+cd chauffeur
+uv sync --dev            # runtime + dev tools into .venv
+```
+
+Day-to-day commands:
+
+```bash
+uv run pytest            # tests (no real browser needed; the CDP layer is faked)
+uv run ruff check .      # lint (add --fix to autofix)
+uv run ty check          # type check (chauffeur/ only)
+uv run deptry .          # dependency check
+```
+
+Lint, types, and tests run in CI across Python 3.12 to 3.14 and must pass
+before a change lands. Run an example against a real browser:
+
+```bash
+uv run examples/01_headless_launch_and_evaluate/main.py
+```
+
+Work on the docs (MkDocs Material):
+
+```bash
+uv sync --group docs
+uv run mkdocs serve      # live preview at http://127.0.0.1:8000
+```
+
+If you change public API, usage, or the pitch, update the README and the
+matching page under `docs/` in the same PR; the API reference is generated
+from docstrings. See [`AGENTS.md`](AGENTS.md) for architecture notes and
+conventions.
+
 ## License
 
 MIT © Michel Tricot
