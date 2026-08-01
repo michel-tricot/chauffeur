@@ -16,8 +16,26 @@ no waits, no daemon. You decide how the browser spins up, patch and load
 extensions, and talk to it in both directions with a decorator-based command
 API. Starting and stopping the browser is your job, not the library's.
 
-Use it for local-first apps with a Chromium UI, browser-backed tooling,
-extension harnesses, or keeping your own logged-in session alive.
+## Why chauffeur?
+
+Reach for it when you want a real browser engine under Python control, without
+a selector-based automation framework or an Electron-sized bundle. Things
+people build with it:
+
+- **Desktop-style apps with a web UI.** Ship an HTML/CSS/JS front end backed by
+  Python in a chromeless window, using the browser already on the machine: a
+  local dashboard, a media organizer, a password vault.
+- **Tools that reuse your real logged-in session.** Sign in once in a headed
+  window, then run headless against the same profile with the cookies and
+  User-Agent intact, including sites behind Cloudflare or an MFA wall.
+- **Extension harnesses.** Pull an extension from the Web Store or a local dir,
+  patch it, load it, and drive or observe it from Python for testing or to add
+  behavior.
+- **Browser-backed jobs.** Render pages, run real JavaScript, or reach web APIs
+  from a genuine engine, orchestrated by Python instead of a headless HTTP
+  client.
+- **Human-in-the-loop flows.** Open a window for someone to sign in or approve
+  something, then take back over programmatically.
 
 ## Features
 
