@@ -47,15 +47,18 @@ from chauffeur import Browser, LaunchSpec
 
 
 async def main():
-    browser = Browser(LaunchSpec(profile=Path("~/.myapp/profile"), headless=True))
+    browser = Browser(LaunchSpec(profile=Path("~/.myapp/profile")))
 
-    @browser.command()                       # the page can now call py_chauffeur.call("greet", ...)
+    # the page can call this via py_chauffeur.call("greet", ...)
+    @browser.command()
     def greet(params: dict) -> str:
         return f"Hello, {params['name']}!"
 
     async with browser:
-        reply = await browser.evaluate("py_chauffeur.call('greet', {name: 'world'})")
-        print(reply)                         # -> Hello, world!
+        reply = await browser.evaluate(
+            "py_chauffeur.call('greet', {name: 'world'})"
+        )
+        print(reply)  # -> Hello, world!
 
 
 asyncio.run(main())
