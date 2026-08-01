@@ -49,6 +49,9 @@ or Edge). macOS and Linux.
 
 ## Quickstart
 
+Register a Python command, then let the browser call it — that round trip is
+the whole point:
+
 ```python
 import asyncio
 from pathlib import Path
@@ -56,9 +59,15 @@ from chauffeur import Browser, LaunchSpec
 
 
 async def main():
-    spec = LaunchSpec(profile=Path("~/.myapp/profile"), headless=True)
-    async with Browser(spec) as browser:
-        print(await browser.evaluate("navigator.userAgent"))
+    browser = Browser(LaunchSpec(profile=Path("~/.myapp/profile"), headless=True))
+
+    @browser.command()                       # the page can now call py.call("greet", ...)
+    def greet(params: dict) -> str:
+        return f"Hello, {params['name']}!"
+
+    async with browser:
+        reply = await browser.evaluate("py.call('greet', {name: 'world'})")
+        print(reply)                         # -> Hello, world!
 
 
 asyncio.run(main())
