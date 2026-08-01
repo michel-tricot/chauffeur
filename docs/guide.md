@@ -179,6 +179,11 @@ Inbound worker calls land in the shared command registry; `caller()` tells a
 handler which extension invoked it (`caller().extension_id`). Pass
 `ExtensionSpec(..., worker_channel=False)` to load an extension without a channel.
 
+Service workers attach lazily and can be evicted and respawned, so the channel
+may not exist the instant an extension loads. `browser.extension(id)` raises
+`LookupError` until the worker has attached; poll `browser.extension_ready(id)`
+(or let inbound calls arrive first) before the first Python -> worker call.
+
 ## Replay a captured User-Agent (Cloudflare)
 
 Headless Chromium sends a `HeadlessChrome/x.y` UA that Cloudflare rejects, and a

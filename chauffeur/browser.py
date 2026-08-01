@@ -304,6 +304,13 @@ class Browser:
         with contextlib.suppress(Exception):
             await cdp.send("Target.detachFromTarget", {"sessionId": session_id})
 
+    def extension_ready(self, extension_id: str) -> bool:
+        """Whether the extension's service worker has attached and its
+        py_chauffeur channel is installed — i.e. whether extension() will
+        succeed. Workers attach lazily and can be evicted/respawned, so poll
+        this before the first call rather than assuming readiness at load."""
+        return extension_id in self._ext_sessions
+
     def extension(self, extension_id: str) -> ExtensionChannel:
         """A py_chauffeur channel into a loaded extension's service worker (for
         Python -> worker calls). Inbound worker -> Python calls arrive at

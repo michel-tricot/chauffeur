@@ -289,6 +289,14 @@ def test_extension_without_worker_raises(tmp_path):
         browser.extension("nope")
 
 
+def test_extension_ready_tracks_attachment(tmp_path):
+    browser = _browser(tmp_path)
+    assert browser.extension_ready("abcdef") is False
+    browser._ext_sessions["abcdef"] = "w1"
+    assert browser.extension_ready("abcdef") is True
+    assert browser.extension("abcdef")  # no longer raises once ready
+
+
 async def test_on_attached_installs_and_readopts_worker(tmp_path):
     browser = _browser(tmp_path)
     browser._channel_ext_ids = {"abcdef"}
