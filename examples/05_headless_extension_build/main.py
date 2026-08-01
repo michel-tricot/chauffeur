@@ -6,7 +6,7 @@ rewrite the manifest, and load the build into a headless browser. To patch a
 real installed extension instead, replace the generated source with
 find_installed_extension("<extension id>").
 
-    uv run examples/headless_05_extension_build/main.py
+    uv run examples/05_headless_extension_build/main.py
 """
 
 import asyncio

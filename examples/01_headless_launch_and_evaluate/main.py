@@ -1,6 +1,6 @@
 """Launch a headless browser, run some JS in it, and shut it down.
 
-    uv run examples/headless_01_launch_and_evaluate/main.py
+    uv run examples/01_headless_launch_and_evaluate/main.py
 """
 
 import asyncio

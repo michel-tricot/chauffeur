@@ -7,7 +7,7 @@ polls; Python drives.
 
 Headed: needs a desktop session. Close the window to exit.
 
-    uv run examples/ui_08_live_updates/main.py
+    uv run examples/08_ui_live_updates/main.py
 """
 
 import asyncio
