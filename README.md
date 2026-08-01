@@ -33,6 +33,11 @@ spec = LaunchSpec(
 )
 ```
 
+The profile is required on purpose: there is no default, so a launch can
+never silently land on the browser profile you use daily. Pointing it at a
+real user data dir works, but is deliberate — and logged with a warning,
+since chauffeur opens a debugging port on it and rewrites its Preferences.
+
 Headed windows start without the bookmarks bar and open about:blank instead
 of the New Tab Page; pass `show_browser_ui=True` to restore Chrome's regular
 UI. Tabbed windows always keep the toolbar — `app_url` / `app_page` open a

@@ -57,6 +57,10 @@ All three checks must pass before a change is done.
   Route data through `py.call` instead. Never add `--disable-web-security`.
 - The DevTools port is unauthenticated and `py.js` is injected into every
   document: treat incoming commands as untrusted input.
+- `LaunchSpec.profile` is required by design — never give it a default, so a
+  launch can never silently target someone's daily browser profile. Pointing
+  it at a real user data dir is allowed but deliberate; `launch()` logs a
+  warning when it happens (`_warn_if_real_profile`).
 - The New Tab Page force-shows the bookmarks bar; bare headed launches open
   `about:blank` instead, and the bar is disabled via profile Preferences
   (`_apply_ui_prefs`) unless `show_browser_ui=True`.

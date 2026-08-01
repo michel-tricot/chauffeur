@@ -31,8 +31,9 @@ class Window:
 
 @dataclass
 class LaunchSpec:
-    # Dedicated profile owned by the consumer. Chromium refuses
-    # --remote-debugging-port on the default profile, so this is required.
+    # Profile directory, required by design: with no default, a launch can
+    # never silently land on a real browser's profile. Targeting one is
+    # allowed but must be spelled out — launch() logs a warning when it is.
     profile: Path
     browser: str | Path = "auto"
     headless: bool = True

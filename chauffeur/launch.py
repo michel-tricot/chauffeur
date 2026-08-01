@@ -9,6 +9,7 @@ from __future__ import annotations
 import contextlib
 import dataclasses
 import json
+import logging
 import socket
 import subprocess
 import sys
@@ -20,8 +21,10 @@ from importlib.resources.abc import Traversable
 from pathlib import Path
 from typing import Any
 
-from chauffeur.browsers import resolve_browser
+from chauffeur.browsers import catalog, resolve_browser
 from chauffeur.spec import LaunchSpec, build_args
+
+log = logging.getLogger(__name__)
 
 
 class LaunchError(RuntimeError):
@@ -127,6 +130,27 @@ def _prepare_pages(
     return dataclasses.replace(spec, **updates), uri if defer_page else None
 
 
+def _warn_if_real_profile(profile: Path) -> None:
+    """Point out a launch that targets a real browser's user data dir.
+
+    profile is a required field precisely so nothing ever *defaults* to a
+    real browser profile. Targeting one deliberately is allowed, but
+    chauffeur opens a debugging port on it and rewrites its Preferences, so
+    it deserves a loud note.
+    """
+    resolved = profile.expanduser().resolve()
+    for browser in catalog():
+        if browser.data_dir is None:
+            continue
+        if resolved.is_relative_to(browser.data_dir.expanduser().resolve()):
+            log.warning(
+                "profile %s is inside %s's real user data dir — chauffeur will write to it",
+                profile,
+                browser.name,
+            )
+            return
+
+
 def _apply_ui_prefs(spec: LaunchSpec) -> None:
     """Persist headed-UI preferences (bookmarks bar) into the profile.
 
@@ -185,6 +209,7 @@ def launch(spec: LaunchSpec, *, ready_timeout: float = 15.0, defer_page: bool = 
     port = spec.devtools_port or free_port()
     stack = contextlib.ExitStack()
     try:
+        _warn_if_real_profile(spec.profile)
         spec, deferred_url = _prepare_pages(spec, stack, defer_page)
         spec.profile.expanduser().mkdir(parents=True, exist_ok=True)
         _apply_ui_prefs(spec)

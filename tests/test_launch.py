@@ -1,11 +1,29 @@
 import json
+import logging
 
-from chauffeur.launch import _apply_ui_prefs
+import chauffeur.launch as launch_module
+from chauffeur.browsers import BrowserInfo
+from chauffeur.launch import _apply_ui_prefs, _warn_if_real_profile
 from chauffeur.spec import LaunchSpec
 
 
 def _prefs(profile):
     return json.loads((profile / "Default" / "Preferences").read_text())
+
+
+def test_real_browser_data_dir_warns(tmp_path, monkeypatch, caplog):
+    real = tmp_path / "Library/Google/Chrome"
+    fake_catalog = (BrowserInfo("chrome", "Google Chrome", tmp_path / "bin", real),)
+    monkeypatch.setattr(launch_module, "catalog", lambda: fake_catalog)
+
+    with caplog.at_level(logging.WARNING, logger="chauffeur.launch"):
+        _warn_if_real_profile(real / "Profile 1")
+    assert "real user data dir" in caplog.text
+
+    caplog.clear()
+    with caplog.at_level(logging.WARNING, logger="chauffeur.launch"):
+        _warn_if_real_profile(tmp_path / "myapp-profile")  # dedicated dir: silent
+    assert not caplog.text
 
 
 def test_headed_hides_bookmarks_bar(tmp_path):
