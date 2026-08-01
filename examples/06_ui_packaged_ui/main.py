@@ -14,7 +14,7 @@ Headed: needs a desktop session. The UI starts as a native modal <dialog>
 (shown via showModal() at load); closing it — the button or the Esc key —
 shuts everything down.
 
-    uv run examples/07_ui_packaged_ui/main.py
+    uv run examples/06_ui_packaged_ui/main.py
 """
 
 import asyncio
