@@ -94,3 +94,10 @@ runners.
 - Many ruff groups are enabled at zero violations; keep them there, and fix
   findings rather than adding ignores unless the pattern is deliberate and
   gets a comment.
+- Keep the README and the MkDocs site in sync. `docs/index.md` mirrors the
+  README landing (tagline, intro, install, quickstart) and `docs/guide.md`
+  mirrors the README's usage sections; the API reference (`docs/reference.md`)
+  is generated from docstrings by mkdocstrings. Any change to public API,
+  usage, or the pitch must update both the README and the matching docs page.
+  Preview locally with `uv run mkdocs serve` (needs `uv sync --group docs`);
+  the Docs workflow builds with `--strict` and deploys to GitHub Pages.

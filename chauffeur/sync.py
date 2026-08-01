@@ -1,4 +1,4 @@
-"""Synchronous facade over :class:`chauffeur.Browser`.
+"""Synchronous facade over `chauffeur.Browser`.
 
 The async core is unchanged: SyncBrowser runs an asyncio event loop on a
 background thread and bridges each call with run_coroutine_threadsafe. Use it

@@ -186,10 +186,10 @@ class ExtensionSpec:
     """A description of an extension to load: a source plus recorded patches.
 
     The source is a local unpacked directory (pass a Path) or an id pulled
-    from the Chrome Web Store (:meth:`from_store`). The chained methods only
-    record patches; nothing touches disk until :func:`build_extension` runs,
+    from the Chrome Web Store (`from_store`). The chained methods only
+    record patches; nothing touches disk until `build_extension` runs,
     usually for you, when the spec is handed to ``LaunchSpec.extensions`` and
-    built beside the profile on every launch, keyed by :attr:`key`.
+    built beside the profile on every launch, keyed by `key`.
 
     (It carries closures, so it describes rather than serializes, "spec" here
     means declare-vs-execute, not JSON-able config.)
