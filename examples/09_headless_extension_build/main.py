@@ -8,7 +8,7 @@ branded Chrome 137+ ignores --load-extension, so CDP is the reliable path.
 To patch a real installed extension instead, replace the generated source
 with find_installed_extension("<extension id>").
 
-    uv run examples/08_headless_extension_build/main.py
+    uv run examples/09_headless_extension_build/main.py
 """
 
 import asyncio

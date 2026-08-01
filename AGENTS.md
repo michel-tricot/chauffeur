@@ -42,6 +42,11 @@ runners.
   is installed so page scripts can use `py.*` from their first line.
 - `Browser.serve()` unblocks on: primary window/tab closed, CDP connection
   dropped, or an optional `until` event.
+- `SyncBrowser` (`chauffeur/sync.py`) is a synchronous facade — it runs the
+  async core on a background thread and bridges via
+  `run_coroutine_threadsafe`; do not fork a second CDP implementation for it.
+  Its `serve(until=threading.Event)` bridges the threading event onto a
+  loop-owned `asyncio.Event`. Registered handlers run on the loop thread.
 
 ## Gotchas (learned the hard way)
 

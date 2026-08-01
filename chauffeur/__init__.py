@@ -19,6 +19,7 @@ from chauffeur.extension import (
 from chauffeur.launch import BrowserHandle, LaunchError, launch
 from chauffeur.serde import SchemaError, SerdeError
 from chauffeur.spec import LaunchSpec, Window
+from chauffeur.sync import SyncBrowser
 from chauffeur.ua import resolve_user_agent, save_user_agent, ua_cache_path
 
 __all__ = [
@@ -35,6 +36,7 @@ __all__ = [
     "SchemaError",
     "SerdeError",
     "StoreExtension",
+    "SyncBrowser",
     "Window",
     "download_extension",
     "extensions_dir",

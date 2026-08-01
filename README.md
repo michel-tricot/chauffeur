@@ -86,6 +86,12 @@ async def main():
         await browser.serve()            # block until the browser closes
 ```
 
+Prefer no `async`/`await`? `SyncBrowser` is a drop-in synchronous facade over
+the same core (it runs the event loop on a background thread); every method
+loses its `a`-prefix — `browser.evaluate(...)`, `browser.call(...)`,
+`browser.serve()` — and `@command`/`@on` handlers still work (they run on the
+loop thread, so keep them quick).
+
 Browser side (injected `py` global is available in every document):
 
 ```javascript

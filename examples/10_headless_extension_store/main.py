@@ -8,7 +8,7 @@ up front. chauffeur builds it beside the profile and loads it over CDP.
 Needs network (reaches the Chrome Web Store). Extension used: uBlock Origin
 Lite. Swap EXTENSION_ID for any other Web Store id.
 
-    uv run examples/09_headless_extension_store/main.py
+    uv run examples/10_headless_extension_store/main.py
 """
 
 import asyncio
