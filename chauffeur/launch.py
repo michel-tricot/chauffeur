@@ -23,7 +23,7 @@ from pathlib import Path
 from typing import Any
 
 from chauffeur.browsers import catalog, resolve_browser
-from chauffeur.extension import extensions_dir
+from chauffeur.extension import build_extension, extensions_dir
 from chauffeur.spec import LaunchSpec, build_args
 
 log = logging.getLogger(__name__)
@@ -137,7 +137,7 @@ def _materialize_extensions(spec: LaunchSpec) -> tuple[Path, ...]:
             n += 1
             key = f"{ext.key}-{n}"
         used.add(key)
-        built.append(ext.build(extensions_dir(spec.profile) / key))
+        built.append(build_extension(ext, extensions_dir(spec.profile) / key))
     return tuple(built)
 
 

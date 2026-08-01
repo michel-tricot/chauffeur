@@ -1,6 +1,6 @@
 """Pull an extension from the Chrome Web Store, patch it, and load it.
 
-ExtensionBuild.from_store(id) downloads the CRX by id (cached in
+ExtensionSpec.from_store(id) downloads the CRX by id (cached in
 <profile>.extensions/<id>.src), and the same patch pipeline applies: here we
 add a marker file, since a downloaded extension's own filenames aren't known
 up front. chauffeur builds it beside the profile and loads it over CDP.
@@ -16,14 +16,14 @@ import json
 import tempfile
 from pathlib import Path
 
-from chauffeur import Browser, ExtensionBuild, LaunchSpec
+from chauffeur import Browser, ExtensionSpec, LaunchSpec
 
 EXTENSION_ID = "ddkjiahejlhfcafbddmgiahcphecmpfh"  # uBlock Origin Lite
 
 
 async def main() -> None:
     with tempfile.TemporaryDirectory() as tmp:
-        ext = ExtensionBuild.from_store(EXTENSION_ID).add_file(
+        ext = ExtensionSpec.from_store(EXTENSION_ID).add_file(
             "chauffeur_marker.js", "console.log('added by chauffeur');"
         )
         spec = LaunchSpec(profile=Path(tmp) / "profile", headless=True, extensions=(ext,))

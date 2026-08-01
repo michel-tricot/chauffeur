@@ -9,9 +9,10 @@ from chauffeur.browsers import BrowserInfo, installed_browsers, resolve_browser
 from chauffeur.cdp import CDPClient, CDPError
 from chauffeur.dispatch import CommandRegistry
 from chauffeur.extension import (
-    ExtensionBuild,
+    ExtensionSpec,
     LocalExtension,
     StoreExtension,
+    build_extension,
     download_extension,
     extensions_dir,
     find_installed_extension,
@@ -29,7 +30,7 @@ __all__ = [
     "CDPClient",
     "CDPError",
     "CommandRegistry",
-    "ExtensionBuild",
+    "ExtensionSpec",
     "LaunchError",
     "LaunchSpec",
     "LocalExtension",
@@ -38,6 +39,7 @@ __all__ = [
     "StoreExtension",
     "SyncBrowser",
     "Window",
+    "build_extension",
     "download_extension",
     "extensions_dir",
     "find_installed_extension",

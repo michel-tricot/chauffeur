@@ -6,9 +6,10 @@ import pytest
 
 import chauffeur.extension as ext_module
 from chauffeur.extension import (
-    ExtensionBuild,
+    ExtensionSpec,
     StoreExtension,
     _crx_to_zip,
+    build_extension,
     download_extension,
     extensions_dir,
 )
@@ -67,13 +68,13 @@ def _fake_download(monkeypatch, crx_bytes, counter=None):
 def test_build_copies_and_patches(tmp_path):
     src = _make_source(tmp_path)
     work = tmp_path / "work"
-    built = (
-        ExtensionBuild(src, work)
+    spec = (
+        ExtensionSpec(src)
         .inject_config("background.js", {"port": 1})
         .append("background.js", "bridge();")
         .patch_manifest(lambda m: {**m, "name": m["name"] + "!"})
-        .build()
     )
+    built = build_extension(spec, work)
     assert built == work.resolve()
     text = (built / "background.js").read_text()
     assert text.startswith("globalThis.__chauffeur_config")
@@ -84,47 +85,49 @@ def test_build_copies_and_patches(tmp_path):
 def test_rebuild_replaces_previous_build(tmp_path):
     src = _make_source(tmp_path)
     work = tmp_path / "work"
-    build = ExtensionBuild(src, work)
-    build.build()
+    spec = ExtensionSpec(src)
+    build_extension(spec, work)
     (work / "stale.js").write_text("old")
-    build.build()
+    build_extension(spec, work)
     assert not (work / "stale.js").exists()
 
 
 def test_build_refuses_workdir_equal_to_source(tmp_path):
     src = _make_source(tmp_path)
     with pytest.raises(ValueError, match="overlaps"):
-        ExtensionBuild(src, src).build()
+        build_extension(ExtensionSpec(src), src)
     assert (src / "background.js").exists()
 
 
 def test_build_refuses_workdir_inside_source(tmp_path):
     src = _make_source(tmp_path)
     with pytest.raises(ValueError, match="overlaps"):
-        ExtensionBuild(src, src / "nested").build()
+        build_extension(ExtensionSpec(src), src / "nested")
 
 
 def test_build_refuses_source_inside_workdir(tmp_path):
     src = _make_source(tmp_path)
     with pytest.raises(ValueError, match="overlaps"):
-        ExtensionBuild(src, tmp_path).build()
+        build_extension(ExtensionSpec(src), tmp_path)
 
 
 def test_add_file_creates_and_refuses_overwrite(tmp_path):
     src = _make_source(tmp_path)
-    built = (
-        ExtensionBuild(src, tmp_path / "work")
+    spec = (
+        ExtensionSpec(src)
         .add_file("content/inject.js", "console.log('hi');")
         .add_file("data.bin", b"\x00\x01\x02")
-        .build()
     )
+    built = build_extension(spec, tmp_path / "work")
     assert (built / "content/inject.js").read_text() == "console.log('hi');"
     assert (built / "data.bin").read_bytes() == b"\x00\x01\x02"
 
     with pytest.raises(ValueError, match="already exists"):
-        ExtensionBuild(src, tmp_path / "work2").add_file("background.js", "x").build()
+        build_extension(ExtensionSpec(src).add_file("background.js", "x"), tmp_path / "work2")
 
-    over = ExtensionBuild(src, tmp_path / "work3").add_file("background.js", "replaced();", overwrite=True).build()
+    over = build_extension(
+        ExtensionSpec(src).add_file("background.js", "replaced();", overwrite=True), tmp_path / "work3"
+    )
     assert (over / "background.js").read_text() == "replaced();"
 
 
@@ -166,27 +169,22 @@ def test_store_source_downloads_once(tmp_path, monkeypatch):
 def test_from_store_builds_with_patches(tmp_path, monkeypatch):
     crx = _crx3(_zip_bytes({"manifest.json": '{"name": "Store Ext"}', "background.js": "boot();"}))
     _fake_download(monkeypatch, crx)
-    ext = ExtensionBuild.from_store("abcdefghijklmnopabcdefghijklmnop", tmp_path / "build")
-    assert ext.key == "abcdefghijklmnopabcdefghijklmnop"
-    built = ext.append("background.js", "bridge();").add_file("extra.js", "x").build()
+    spec = ExtensionSpec.from_store("abcdefghijklmnopabcdefghijklmnop")
+    assert spec.key == "abcdefghijklmnopabcdefghijklmnop"
+    built = build_extension(spec.append("background.js", "bridge();").add_file("extra.js", "x"), tmp_path / "build")
     assert (built / "background.js").read_text().endswith("bridge();")
     assert (built / "extra.js").is_file()
 
 
 def test_key_slugs_manifest_name(tmp_path):
     src = _make_source(tmp_path)
-    assert ExtensionBuild(src).key == "ext"
-
-
-def test_build_without_workdir_raises(tmp_path):
-    with pytest.raises(ValueError, match="no workdir"):
-        ExtensionBuild(_make_source(tmp_path)).build()
+    assert ExtensionSpec(src).key == "ext"
 
 
 def test_materialize_builds_beside_profile(tmp_path):
     src = _make_source(tmp_path)
     profile = tmp_path / "profile"
-    spec = LaunchSpec(profile=profile, extensions=(ExtensionBuild(src), ExtensionBuild(src)))
+    spec = LaunchSpec(profile=profile, extensions=(ExtensionSpec(src), ExtensionSpec(src)))
     built = _materialize_extensions(spec)
     assert built[0] == (extensions_dir(profile) / "ext").resolve()
     assert built[1].name == "ext-2"  # same manifest name: second build gets a suffix
@@ -205,5 +203,5 @@ def test_build_refuses_foreign_directory(tmp_path):
     foreign.mkdir()
     (foreign / "data.txt").write_text("keep me")
     with pytest.raises(ValueError, match="not a previous build"):
-        ExtensionBuild(src, foreign).build()
+        build_extension(ExtensionSpec(src), foreign)
     assert (foreign / "data.txt").read_text() == "keep me"

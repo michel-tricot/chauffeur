@@ -133,15 +133,18 @@ so its scripts can call `py.on(...)` / `py.notify(...)` from their first line.
 The source is a local unpacked directory or an id pulled from the Chrome Web
 Store; both take the same patches:
 
+An `ExtensionSpec` describes the source and the patches; you hand it to
+`LaunchSpec.extensions` and the launch builds it for you (call
+`build_extension(spec, workdir)` yourself only if you want the dir directly).
+
 ```python
-from chauffeur import ExtensionBuild, find_installed_extension
+from chauffeur import ExtensionSpec, find_installed_extension
 
 # local: an unpacked dir, or a copy from an installed browser
-src = find_installed_extension("pejdijmoenmkgeppbflobdenhhabjlaj")
-ext = ExtensionBuild(src)
+ext = ExtensionSpec(find_installed_extension("pejdijmoenmkgeppbflobdenhhabjlaj"))
 
 # or pull it from the Web Store by id (downloaded once, cached)
-ext = ExtensionBuild.from_store("pejdijmoenmkgeppbflobdenhhabjlaj")
+ext = ExtensionSpec.from_store("pejdijmoenmkgeppbflobdenhhabjlaj")
 
 ext = (
     ext

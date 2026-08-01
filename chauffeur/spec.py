@@ -7,7 +7,7 @@ from importlib.resources.abc import Traversable
 from pathlib import Path
 from typing import Literal
 
-from chauffeur.extension import ExtensionBuild
+from chauffeur.extension import ExtensionSpec
 from chauffeur.ua import resolve_user_agent
 
 # Trims the process footprint and keeps background pages/service workers
@@ -53,10 +53,10 @@ class LaunchSpec:
     # Extensions to load over CDP (Extensions.loadUnpacked) — branded Chrome
     # 137+ ignores --load-extension, so CDP is the only reliable path and
     # loading requires Browser (launch() alone has no CDP connection).
-    # An ExtensionBuild is rebuilt on every launch into
-    # <profile>.extensions/<key>, so a bumped installed version is picked up
-    # automatically; a plain Path loads a pre-built directory as-is.
-    extensions: tuple[ExtensionBuild | Path, ...] = ()
+    # An ExtensionSpec is built on every launch into <profile>.extensions/<key>,
+    # so a bumped installed version is picked up automatically; a plain Path
+    # loads a pre-built directory as-is.
+    extensions: tuple[ExtensionSpec | Path, ...] = ()
     # Enables Extensions.loadUnpacked; implied by extensions.
     extension_debugging: bool = False
     minimal_footprint: bool = True

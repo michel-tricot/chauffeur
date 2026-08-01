@@ -1,7 +1,7 @@
 """Patch an extension and let the launch pipeline build and load it.
 
 Creates a throwaway MV3 extension so the example is self-contained, then
-hands the ExtensionBuild to LaunchSpec.extensions: chauffeur builds it into
+hands the ExtensionSpec to LaunchSpec.extensions: chauffeur builds it into
 <profile>.extensions/<name> on every launch (so a bumped installed version
 is always picked up) and loads it over CDP with Extensions.loadUnpacked —
 branded Chrome 137+ ignores --load-extension, so CDP is the reliable path.
@@ -16,7 +16,7 @@ import json
 import tempfile
 from pathlib import Path
 
-from chauffeur import Browser, ExtensionBuild, LaunchSpec
+from chauffeur import Browser, ExtensionSpec, LaunchSpec
 
 MANIFEST = {
     "manifest_version": 3,
@@ -38,7 +38,7 @@ async def main() -> None:
     with tempfile.TemporaryDirectory() as tmp:
         root = Path(tmp)
         ext = (
-            ExtensionBuild(make_source(root))  # no workdir: built beside the profile
+            ExtensionSpec(make_source(root))  # built beside the profile at launch
             .inject_config("background.js", {"endpoint": "http://127.0.0.1:8765", "token": "demo"})
             .append("background.js", 'console.log("bridge appended by chauffeur");')
             .patch_manifest(lambda m: {**m, "name": m["name"] + " (patched)"})

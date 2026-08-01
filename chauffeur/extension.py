@@ -1,10 +1,11 @@
 """Get, patch, and build Chromium extensions before loading them.
 
-The source is either a local unpacked directory or an extension id pulled
-from the Chrome Web Store (downloaded as a CRX and unzipped). Either way the
-build copies it to a working dir and applies patches — inject config, append
-or rewrite existing files, add new files, edit the manifest — then hands the
-built path to Extensions.loadUnpacked over CDP (see LaunchSpec.extensions).
+An ExtensionSpec describes a source — a local unpacked directory or an id
+pulled from the Chrome Web Store (downloaded as a CRX and unzipped) — plus
+patches (inject config, append or rewrite existing files, add new files, edit
+the manifest). build_extension() materializes it: copy to a working dir,
+apply patches, hand the path to Extensions.loadUnpacked over CDP (usually via
+LaunchSpec.extensions, which builds each spec beside the profile at launch).
 """
 
 from __future__ import annotations
@@ -181,36 +182,34 @@ def extensions_dir(profile: Path) -> Path:
     return profile.parent / f"{profile.name}.extensions"
 
 
-class ExtensionBuild:
-    """A working copy of an extension that can be patched, then built.
+class ExtensionSpec:
+    """A description of an extension to load: a source plus recorded patches.
 
     The source is a local unpacked directory (pass a Path) or an id pulled
-    from the Chrome Web Store (:meth:`from_store`). Rebuild is idempotent:
-    build() re-materializes the source and re-applies the recorded patches, so
-    a bumped local version is picked up automatically (a store download is
-    cached and reused). workdir is optional — hand the build to
-    ``LaunchSpec.extensions`` and it is built beside the profile on every
-    launch, keyed by :attr:`key`.
+    from the Chrome Web Store (:meth:`from_store`). The chained methods only
+    record patches; nothing touches disk until :func:`build_extension` runs —
+    usually for you, when the spec is handed to ``LaunchSpec.extensions`` and
+    built beside the profile on every launch, keyed by :attr:`key`.
+
+    (It carries closures, so it describes rather than serializes — "spec" here
+    means declare-vs-execute, not JSON-able config.)
     """
 
-    def __init__(self, source: Path | str | ExtensionSource, workdir: Path | None = None) -> None:
+    def __init__(self, source: Path | str | ExtensionSource) -> None:
         self.source: ExtensionSource = source if isinstance(source, ExtensionSource) else LocalExtension(Path(source))
-        self.workdir = workdir
-        self._patches: list[Callable[[Path], None]] = []
+        self.patches: list[Callable[[Path], None]] = []
 
     @classmethod
-    def from_store(
-        cls, extension_id: str, workdir: Path | None = None, *, prodversion: str = _STORE_PRODVERSION
-    ) -> ExtensionBuild:
-        """Build from an extension pulled off the Chrome Web Store by id."""
-        return cls(StoreExtension(extension_id, prodversion), workdir)
+    def from_store(cls, extension_id: str, *, prodversion: str = _STORE_PRODVERSION) -> ExtensionSpec:
+        """Describe an extension pulled off the Chrome Web Store by id."""
+        return cls(StoreExtension(extension_id, prodversion))
 
     @property
     def key(self) -> str:
         """Directory slug for derived builds (manifest name, or the store id)."""
         return self.source.key()
 
-    def add_file(self, relative: str, content: str | bytes, *, overwrite: bool = False) -> ExtensionBuild:
+    def add_file(self, relative: str, content: str | bytes, *, overwrite: bool = False) -> ExtensionSpec:
         """Add a file to the extension (parents created automatically).
 
         Refuses to clobber an existing file unless overwrite=True; to append
@@ -224,18 +223,18 @@ class ExtensionBuild:
             target.parent.mkdir(parents=True, exist_ok=True)
             target.write_bytes(content) if isinstance(content, bytes) else target.write_text(content)
 
-        self._patches.append(patch)
+        self.patches.append(patch)
         return self
 
-    def append(self, relative: str, text: str) -> ExtensionBuild:
+    def append(self, relative: str, text: str) -> ExtensionSpec:
         def patch(root: Path) -> None:
             target = root / relative
             target.write_text(target.read_text() + "\n" + text)
 
-        self._patches.append(patch)
+        self.patches.append(patch)
         return self
 
-    def inject_config(self, relative: str, config: dict) -> ExtensionBuild:
+    def inject_config(self, relative: str, config: dict) -> ExtensionSpec:
         """Prepend `globalThis.__chauffeur_config = {...}` so appended code can read it."""
         payload = "globalThis.__chauffeur_config = " + json.dumps(config) + ";\n"
 
@@ -243,43 +242,46 @@ class ExtensionBuild:
             target = root / relative
             target.write_text(payload + target.read_text())
 
-        self._patches.append(patch)
+        self.patches.append(patch)
         return self
 
-    def patch(self, relative: str, transform: Callable[[str], str]) -> ExtensionBuild:
+    def patch(self, relative: str, transform: Callable[[str], str]) -> ExtensionSpec:
         def apply(root: Path) -> None:
             target = root / relative
             target.write_text(transform(target.read_text()))
 
-        self._patches.append(apply)
+        self.patches.append(apply)
         return self
 
-    def patch_manifest(self, transform: Callable[[dict], dict]) -> ExtensionBuild:
+    def patch_manifest(self, transform: Callable[[dict], dict]) -> ExtensionSpec:
         def apply(root: Path) -> None:
             path = root / "manifest.json"
             manifest = json.loads(path.read_text())
             path.write_text(json.dumps(transform(manifest), indent=2))
 
-        self._patches.append(apply)
+        self.patches.append(apply)
         return self
 
-    def build(self, workdir: Path | None = None, *, cache_dir: Path | None = None) -> Path:
-        dest = workdir or self.workdir
-        if dest is None:
-            raise ValueError("no workdir: pass one here or at construction, or launch via LaunchSpec.extensions")
-        workdir = dest.expanduser().resolve()
-        # Store downloads are cached beside the build dir by default.
-        cache = Path(cache_dir).expanduser() if cache_dir else dest.expanduser().parent
-        source = self.source.resolve(cache).resolve()
-        if workdir.is_relative_to(source) or source.is_relative_to(workdir):
-            raise ValueError(f"workdir {workdir} overlaps extension source {source}")
-        if workdir.exists():
-            # Only delete what looks like a previous build; a mistyped workdir
-            # (profile dir, home dir, ...) must not be wiped.
-            if not (workdir / "manifest.json").exists():
-                raise ValueError(f"refusing to delete {workdir}: not a previous build (no manifest.json)")
-            shutil.rmtree(workdir)
-        shutil.copytree(source, workdir)
-        for patch in self._patches:
-            patch(workdir)
-        return workdir
+
+def build_extension(spec: ExtensionSpec, workdir: Path, *, cache_dir: Path | None = None) -> Path:
+    """Materialize ``spec`` into ``workdir`` and return it.
+
+    Copies the (possibly downloaded) source into workdir, then applies the
+    recorded patches. Idempotent: re-run to pick up a bumped local source (a
+    store download is cached in ``cache_dir``, defaulting beside workdir).
+    """
+    workdir = workdir.expanduser().resolve()
+    cache = Path(cache_dir).expanduser() if cache_dir else workdir.parent
+    source = spec.source.resolve(cache).resolve()
+    if workdir.is_relative_to(source) or source.is_relative_to(workdir):
+        raise ValueError(f"workdir {workdir} overlaps extension source {source}")
+    if workdir.exists():
+        # Only delete what looks like a previous build; a mistyped workdir
+        # (profile dir, home dir, ...) must not be wiped.
+        if not (workdir / "manifest.json").exists():
+            raise ValueError(f"refusing to delete {workdir}: not a previous build (no manifest.json)")
+        shutil.rmtree(workdir)
+    shutil.copytree(source, workdir)
+    for patch in spec.patches:
+        patch(workdir)
+    return workdir
