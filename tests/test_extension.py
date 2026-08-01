@@ -124,6 +124,9 @@ def test_add_file_creates_and_refuses_overwrite(tmp_path):
     with pytest.raises(ValueError, match="already exists"):
         ExtensionBuild(src, tmp_path / "work2").add_file("background.js", "x").build()
 
+    over = ExtensionBuild(src, tmp_path / "work3").add_file("background.js", "replaced();", overwrite=True).build()
+    assert (over / "background.js").read_text() == "replaced();"
+
 
 def test_crx3_to_zip():
     z = _zip_bytes({"manifest.json": "{}"})

@@ -210,16 +210,17 @@ class ExtensionBuild:
         """Directory slug for derived builds (manifest name, or the store id)."""
         return self.source.key()
 
-    def add_file(self, relative: str, content: str | bytes) -> ExtensionBuild:
-        """Add a new file to the extension (parents created; won't overwrite).
+    def add_file(self, relative: str, content: str | bytes, *, overwrite: bool = False) -> ExtensionBuild:
+        """Add a file to the extension (parents created automatically).
 
-        For changing an existing file use append/patch/inject_config instead.
+        Refuses to clobber an existing file unless overwrite=True; to append
+        to or transform an existing file use append/patch/inject_config.
         """
 
         def patch(root: Path) -> None:
             target = root / relative
-            if target.exists():
-                raise ValueError(f"{relative} already exists; use append()/patch() to modify it")
+            if target.exists() and not overwrite:
+                raise ValueError(f"{relative} already exists; pass overwrite=True or use append()/patch()")
             target.parent.mkdir(parents=True, exist_ok=True)
             target.write_bytes(content) if isinstance(content, bytes) else target.write_text(content)
 
