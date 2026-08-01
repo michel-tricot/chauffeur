@@ -17,9 +17,9 @@ lifecycle.
 - Lint: `uv run ruff check .` (autofix with `--fix`)
 - Types: `uv run ty check` — gates `chauffeur/` only; tests are excluded on
   purpose (they stub internals)
-- Examples: `uv run examples/<name>/main.py` — `04_app_window` and
-  `07_packaged_ui` open a real window and block until closed; the rest are
-  headless and safe to run unattended.
+- Examples: `uv run examples/<name>/main.py` — the directory prefix says
+  which kind: `headless_*` are safe to run unattended, `ui_*` open a real
+  window and block until it is closed.
 
 All three checks must pass before a change is done.
 
@@ -46,7 +46,8 @@ All three checks must pass before a change is done.
   deferred app pages therefore launch on a real placeholder file.
 - Branded Google Chrome 137+ silently ignores `--load-extension`. Load
   unpacked extensions over CDP instead: `extension_debugging=True` +
-  `Extensions.loadUnpacked` (see `examples/05_extension_build`). Chromium and
+  `Extensions.loadUnpacked` (see `examples/headless_05_extension_build`).
+  Chromium and
   dev builds still honor the flag.
 - On macOS the browser process outlives its last window. "User closed the
   app" is detected via `Target.targetDestroyed` on the primary target — the

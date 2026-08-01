@@ -3,7 +3,7 @@
 @browser.on(...) delivers any DevTools event as a plain dict. The py channel
 is re-injected on every new document, so it survives navigation.
 
-    uv run examples/03_cdp_events/main.py
+    uv run examples/headless_03_cdp_events/main.py
 """
 
 import asyncio

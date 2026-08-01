@@ -3,7 +3,7 @@
 Headed: needs a desktop session (macOS or Linux with a display). The window
 is chromeless (--app), sized and centered by the spec. Close it to exit.
 
-    uv run examples/04_app_window/main.py
+    uv run examples/ui_04_app_window/main.py
 """
 
 import asyncio

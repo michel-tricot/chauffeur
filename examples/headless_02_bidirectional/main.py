@@ -5,7 +5,7 @@ py.call(...). The page registers handlers with py.on(...); Python calls them
 with browser.call(...). Dataclass annotations get validated params and
 serialized results; bad input comes back as a rejection, never a hang.
 
-    uv run examples/02_bidirectional/main.py
+    uv run examples/headless_02_bidirectional/main.py
 """
 
 import asyncio

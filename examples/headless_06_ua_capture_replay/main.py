@@ -5,7 +5,7 @@ cookie stays bound to the UA that earned it (see the README). To stay
 self-contained this captures from a headless browser — the cache holds the
 HeadlessChrome marker, and replay strips it.
 
-    uv run examples/06_ua_capture_replay/main.py
+    uv run examples/headless_06_ua_capture_replay/main.py
 """
 
 import asyncio
