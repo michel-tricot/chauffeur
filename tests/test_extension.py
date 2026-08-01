@@ -5,6 +5,7 @@ import zipfile
 import pytest
 
 import chauffeur.extension as ext_module
+from chauffeur import ExtensionNotFoundError  # via the package root: locks in the public export
 from chauffeur.extension import (
     ExtensionSpec,
     StoreExtension,
@@ -156,6 +157,34 @@ def test_download_extension_unpacks(tmp_path, monkeypatch):
     assert (dest / "bg.js").is_file()
 
 
+def test_download_strips_metadata(tmp_path, monkeypatch):
+    # Store CRXs ship _metadata, and Chrome refuses to load an unpacked copy with it.
+    crx = _crx3(_zip_bytes({"manifest.json": "{}", "_metadata/verified_contents.json": "{}"}))
+    _fake_download(monkeypatch, crx)
+    dest = download_extension("abcdefghijklmnopabcdefghijklmnop", tmp_path / "dl")
+    assert not (dest / "_metadata").exists()
+
+
+def test_bad_download_keeps_existing_copy(tmp_path, monkeypatch):
+    _fake_download(monkeypatch, _crx3(_zip_bytes({"manifest.json": '{"name": "kept"}'})))
+    dest = download_extension("abcdefghijklmnopabcdefghijklmnop", tmp_path / "dl")
+
+    _fake_download(monkeypatch, b"Cr24 not a real crx payload")
+    with pytest.raises(ExtensionNotFoundError, match="not a valid CRX"):
+        download_extension("abcdefghijklmnopabcdefghijklmnop", tmp_path / "dl")
+    assert json.loads((dest / "manifest.json").read_text())["name"] == "kept"
+
+
+def test_manifestless_download_keeps_existing_copy(tmp_path, monkeypatch):
+    _fake_download(monkeypatch, _crx3(_zip_bytes({"manifest.json": '{"name": "kept"}'})))
+    dest = download_extension("abcdefghijklmnopabcdefghijklmnop", tmp_path / "dl")
+
+    _fake_download(monkeypatch, _crx3(_zip_bytes({"bg.js": "1;"})))
+    with pytest.raises(ExtensionNotFoundError, match="no manifest"):
+        download_extension("abcdefghijklmnopabcdefghijklmnop", tmp_path / "dl")
+    assert json.loads((dest / "manifest.json").read_text())["name"] == "kept"
+
+
 def test_store_source_downloads_once(tmp_path, monkeypatch):
     calls = []
     _fake_download(monkeypatch, _crx3(_zip_bytes({"manifest.json": "{}"})), counter=calls)
@@ -164,6 +193,30 @@ def test_store_source_downloads_once(tmp_path, monkeypatch):
     second = source.resolve(tmp_path)  # cached; no second download
     assert first == second
     assert len(calls) == 1
+
+
+def test_store_source_refresh_redownloads_each_resolve(tmp_path, monkeypatch):
+    calls = []
+    _fake_download(monkeypatch, _crx3(_zip_bytes({"manifest.json": "{}"})), counter=calls)
+    source = StoreExtension("abcdefghijklmnopabcdefghijklmnop", refresh=True)
+    assert source.resolve(tmp_path) == source.resolve(tmp_path)
+    assert len(calls) == 2
+
+
+def test_store_source_refresh_survives_store_outage(tmp_path, monkeypatch):
+    _fake_download(monkeypatch, _crx3(_zip_bytes({"manifest.json": '{"name": "kept"}'})))
+    source = StoreExtension("abcdefghijklmnopabcdefghijklmnop", refresh=True)
+    cached = source.resolve(tmp_path)
+
+    _fake_download(monkeypatch, b"")  # empty 204: the store is not cooperating
+    assert source.resolve(tmp_path) == cached  # must not raise; the cache keeps working
+    assert json.loads((cached / "manifest.json").read_text())["name"] == "kept"
+
+
+def test_store_source_refresh_raises_without_cache(tmp_path, monkeypatch):
+    _fake_download(monkeypatch, b"")
+    with pytest.raises(ExtensionNotFoundError):
+        StoreExtension("abcdefghijklmnopabcdefghijklmnop", refresh=True).resolve(tmp_path)
 
 
 def test_from_store_builds_with_patches(tmp_path, monkeypatch):

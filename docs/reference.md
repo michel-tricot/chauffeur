@@ -40,6 +40,7 @@ the source.
 ## Errors
 
 ::: chauffeur.CDPError
+::: chauffeur.ExtensionNotFoundError
 ::: chauffeur.LaunchError
 ::: chauffeur.SchemaError
 ::: chauffeur.SerdeError

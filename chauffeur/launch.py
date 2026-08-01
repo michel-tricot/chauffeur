@@ -227,7 +227,7 @@ def launch(spec: LaunchSpec, *, ready_timeout: float = 15.0, defer_page: bool = 
         spec, deferred_url = _prepare_pages(spec, stack, defer_page)
         spec.profile.expanduser().mkdir(parents=True, exist_ok=True)
         _apply_ui_prefs(spec)
-        screen = screen_size() if spec.window and spec.window.position == "center" else None
+        screen = screen_size() if spec.window and spec.window.position in ("center", "dialog") else None
         args = build_args(info.binary, spec, port, screen=screen)
         proc = subprocess.Popen(args, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
     except BaseException:

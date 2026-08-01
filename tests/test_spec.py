@@ -47,6 +47,22 @@ def test_window_centering_with_screen():
     assert "--window-position=800,350" in args
 
 
+def test_window_dialog_position_sits_above_center():
+    from chauffeur.spec import build_args as ba
+
+    spec = LaunchSpec(profile=Path("/tmp/p"), window=Window(size=(400, 300), position="dialog"))
+    args = ba(Path("/bin/chrome"), spec, 9222, screen=(2000, 1000))
+    assert "--window-position=800,233" in args  # x centered, y a third down
+
+
+def test_window_named_position_dropped_without_screen():
+    from chauffeur.spec import build_args as ba
+
+    spec = LaunchSpec(profile=Path("/tmp/p"), window=Window(size=(400, 300), position="dialog"))
+    args = ba(Path("/bin/chrome"), spec, 9222, screen=None)
+    assert not any(a.startswith("--window-position") for a in args)
+
+
 def test_bare_headed_launch_starts_blank_not_ntp():
     assert _args(headless=False)[-1] == "about:blank"
 

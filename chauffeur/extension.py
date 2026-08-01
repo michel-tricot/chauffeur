@@ -34,7 +34,7 @@ _CRX2, _CRX3 = 2, 3  # CRX header format versions
 
 
 class ExtensionNotFoundError(RuntimeError):
-    """No extension matches the id (not installed, or not on the store)."""
+    """No usable extension for the id: not installed, not on the store, or a bad download."""
 
 
 def _slug(name: str) -> str:
@@ -72,8 +72,11 @@ def download_extension(
 ) -> Path:
     """Download an extension from the Chrome Web Store by id and unpack it.
 
-    Fetches the CRX, strips its header, and unzips into ``dest`` (replacing
-    any prior contents). Returns ``dest``.
+    Fetches the CRX, strips its header and ``_metadata`` (Chrome refuses to load
+    an unpacked extension containing it), and unzips into ``dest``, replacing any
+    prior contents only once the download validates. Returns ``dest``. Raises
+    ``ExtensionNotFoundError`` on any failure: unreachable store, unknown id, or
+    an invalid archive.
     """
     query = urllib.parse.urlencode(
         {
@@ -91,14 +94,29 @@ def download_extension(
         raise ExtensionNotFoundError(f"could not download extension {extension_id}: {exc}") from exc
     if not crx:  # empty 204: usually prodversion below the extension's minimum
         raise ExtensionNotFoundError(f"store returned no data for {extension_id} (try a higher prodversion)")
+    # Unpack into a staging sibling and swap in only a validated result, so a bad
+    # download (truncated CRX, no manifest) never destroys an existing copy at dest.
     dest = dest.expanduser()
-    if dest.exists():
-        shutil.rmtree(dest)
-    dest.mkdir(parents=True)
-    with zipfile.ZipFile(io.BytesIO(_crx_to_zip(crx))) as archive:
-        archive.extractall(dest)
-    if not (dest / "manifest.json").exists():
-        raise ExtensionNotFoundError(f"downloaded extension {extension_id} has no manifest.json")
+    staging = dest.with_name(dest.name + ".downloading")
+    if staging.exists():
+        shutil.rmtree(staging)
+    staging.mkdir(parents=True)
+    try:
+        try:
+            with zipfile.ZipFile(io.BytesIO(_crx_to_zip(crx))) as archive:
+                archive.extractall(staging)
+        except (ValueError, zipfile.BadZipFile) as exc:
+            raise ExtensionNotFoundError(f"downloaded extension {extension_id} is not a valid CRX: {exc}") from exc
+        if not (staging / "manifest.json").exists():
+            raise ExtensionNotFoundError(f"downloaded extension {extension_id} has no manifest.json")
+        # Store CRXs ship a _metadata dir, and Chrome refuses to load an unpacked
+        # extension containing one; strip it so the download is loadable as-is.
+        shutil.rmtree(staging / "_metadata", ignore_errors=True)
+        if dest.exists():
+            shutil.rmtree(dest)
+        staging.rename(dest)
+    finally:
+        shutil.rmtree(staging, ignore_errors=True)
     return dest
 
 
@@ -132,18 +150,33 @@ class LocalExtension(ExtensionSource):
 
 @dataclass(frozen=True)
 class StoreExtension(ExtensionSource):
-    """An extension pulled from the Chrome Web Store by id, cached once."""
+    """An extension pulled from the Chrome Web Store by id.
+
+    Downloaded once and reused by default. With ``refresh=True`` every resolve
+    (i.e. every build/launch) re-downloads so store updates are picked up; when
+    the store is unreachable an existing cached copy keeps working, so being
+    offline never breaks a launch that worked before.
+    """
 
     extension_id: str
     prodversion: str = _STORE_PRODVERSION
+    refresh: bool = False
+    timeout: float = 30.0  # bounds how long an offline resolve waits before the cache
 
     def key(self) -> str:
         return self.extension_id
 
     def resolve(self, cache_dir: Path) -> Path:
         cached = cache_dir.expanduser() / f"{self.extension_id}.src"
-        if not (cached / "manifest.json").exists():  # download once, then reuse
-            download_extension(self.extension_id, cached, prodversion=self.prodversion)
+        have_copy = (cached / "manifest.json").exists()
+        if have_copy and not self.refresh:
+            return cached
+        try:
+            download_extension(self.extension_id, cached, prodversion=self.prodversion, timeout=self.timeout)
+        except ExtensionNotFoundError:
+            if not have_copy:
+                raise
+            # Refresh failed (offline, store hiccup): the cached copy keeps working.
         return cached
 
 
@@ -200,9 +233,20 @@ class ExtensionSpec:
         self.patches: list[Callable[[Path], None]] = []
 
     @classmethod
-    def from_store(cls, extension_id: str, *, prodversion: str = _STORE_PRODVERSION) -> ExtensionSpec:
-        """Describe an extension pulled off the Chrome Web Store by id."""
-        return cls(StoreExtension(extension_id, prodversion))
+    def from_store(
+        cls,
+        extension_id: str,
+        *,
+        prodversion: str = _STORE_PRODVERSION,
+        refresh: bool = False,
+        timeout: float = 30.0,
+    ) -> ExtensionSpec:
+        """Describe an extension pulled off the Chrome Web Store by id.
+
+        ``refresh=True`` re-downloads on every build (picking up store updates)
+        and falls back to the cached copy when the store is unreachable.
+        """
+        return cls(StoreExtension(extension_id, prodversion, refresh=refresh, timeout=timeout))
 
     @property
     def key(self) -> str:

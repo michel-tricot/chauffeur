@@ -75,9 +75,17 @@ To cut a release:
   `LaunchSpec.extensions`, which builds each spec beside the profile at
   launch). Source is a local dir (a Path) or `ExtensionSpec.from_store(id)`
   which downloads the CRX from the Chrome Web Store (`download_extension`,
-  cached in `<profile>.extensions/<id>.src`) and strips the CRX2/CRX3 header.
-  Patch ops: inject_config/append/patch modify existing files, add_file adds
-  new ones, patch_manifest edits the manifest.
+  cached in `<profile>.extensions/<id>.src`). Patch ops:
+  inject_config/append/patch modify existing files, add_file adds new ones,
+  patch_manifest edits the manifest.
+- `download_extension` strips the CRX2/CRX3 header AND the `_metadata` dir
+  (Chrome refuses to load an unpacked extension that contains `_metadata`),
+  and unpacks into a `.downloading` staging sibling that is swapped in only
+  after it validates, so a truncated or manifest-less download never destroys
+  an existing cached copy. `StoreExtension`/`from_store` take `refresh=True`
+  (re-download every build to pick up store updates) and `timeout`; when the
+  store is unreachable a refresh falls back to the cached copy, so going
+  offline never breaks a launch that worked before.
 - Branded Google Chrome 137+ silently ignores `--load-extension`, so
   chauffeur never uses it: `LaunchSpec.extensions` builds into
   `<profile>.extensions/<key>` at launch and `Browser.start()` loads each

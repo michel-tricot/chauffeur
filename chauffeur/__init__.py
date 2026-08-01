@@ -12,6 +12,7 @@ from chauffeur.browser import Browser
 from chauffeur.browsers import BrowserInfo, installed_browsers, resolve_browser
 from chauffeur.cdp import CDPClient, CDPError
 from chauffeur.extension import (
+    ExtensionNotFoundError,
     ExtensionSpec,
     build_extension,
     download_extension,
@@ -30,6 +31,7 @@ __all__ = [
     "BrowserInfo",
     "CDPClient",
     "CDPError",
+    "ExtensionNotFoundError",
     "ExtensionSpec",
     "LaunchError",
     "LaunchSpec",

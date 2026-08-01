@@ -103,7 +103,7 @@ spec = LaunchSpec(
     browser="auto",                     # or "chrome" / a binary Path
     headless=True,
     devtools_port=0,                    # 0 = pick a free port
-    window=Window(size=(390, 320), position="center"),
+    window=Window(size=(390, 320), position="center"),  # or "dialog": above center
     minimal_footprint=True,             # trim the process down
     show_browser_ui=False,              # present as an app/dialog, not a browser
 )
@@ -218,8 +218,9 @@ from chauffeur import ExtensionSpec, find_installed_extension
 # local: an unpacked dir, or a copy from an installed browser
 ext = ExtensionSpec(find_installed_extension("pejdijmoenmkgeppbflobdenhhabjlaj"))
 
-# or pull it from the Web Store by id (downloaded once, cached)
-ext = ExtensionSpec.from_store("pejdijmoenmkgeppbflobdenhhabjlaj")
+# or pull it from the Web Store by id (downloaded once, cached). refresh=True
+# re-downloads on each launch and keeps the cache when the store is unreachable
+ext = ExtensionSpec.from_store("pejdijmoenmkgeppbflobdenhhabjlaj", refresh=True)
 
 ext = (
     ext

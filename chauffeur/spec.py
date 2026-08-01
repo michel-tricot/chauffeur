@@ -27,7 +27,9 @@ MINIMAL_FOOTPRINT_FLAGS = (
 @dataclass(frozen=True)
 class Window:
     size: tuple[int, int] | None = None
-    position: tuple[int, int] | Literal["center"] | None = None
+    # "center" centers on the main display; "dialog" centers horizontally but sits
+    # a third of the way down, where the OS places system dialogs.
+    position: tuple[int, int] | Literal["center", "dialog"] | None = None
 
 
 @dataclass
@@ -119,8 +121,12 @@ def _window_flags(window: Window, screen: tuple[int, int] | None) -> list[str]:
     if window.size:
         flags.append(f"--window-size={size[0]},{size[1]}")
     position = window.position
-    if position == "center":
-        position = None if screen is None else ((screen[0] - size[0]) // 2, (screen[1] - size[1]) // 2)
+    if position in ("center", "dialog"):
+        if screen is None:
+            position = None
+        else:
+            y_share = 2 if position == "center" else 3  # dialogs sit above center
+            position = (max((screen[0] - size[0]) // 2, 0), max((screen[1] - size[1]) // y_share, 0))
     if isinstance(position, tuple):
         flags.append(f"--window-position={position[0]},{position[1]}")
     return flags
