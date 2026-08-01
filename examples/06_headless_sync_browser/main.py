@@ -2,9 +2,9 @@
 
 SyncBrowser runs the async core on a background thread and blocks on each
 call. Registered @command handlers run on that loop thread. This is the sync
-twin of 02_headless_bidirectional.
+twin of 03_headless_bidirectional.
 
-    uv run examples/05_headless_sync_browser/main.py
+    uv run examples/06_headless_sync_browser/main.py
 """
 
 from pathlib import Path

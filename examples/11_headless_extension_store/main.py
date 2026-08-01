@@ -9,7 +9,7 @@ build+load path as the local example, on a real store extension.
 Needs network (reaches the Chrome Web Store). Extension: JSON Formatter (a
 small, plain hello-world-sized MV3 extension). Swap EXTENSION_ID for any id.
 
-    uv run examples/10_headless_extension_store/main.py
+    uv run examples/11_headless_extension_store/main.py
 """
 
 import asyncio

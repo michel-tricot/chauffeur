@@ -44,30 +44,25 @@ def test_zip_page_extracted_with_siblings(tmp_path):
     assert not extracted.exists()  # extraction lives only as long as the stack
 
 
-def test_app_requires_url():
-    with pytest.raises(ValueError, match="app=True needs a url"):
-        LaunchSpec(profile=Path("/tmp/p"), app=True)
-
-
-def test_string_url_is_verbatim_trailing_arg(tmp_path):
-    spec = LaunchSpec(profile=tmp_path / "p", url="https://x")
+def test_string_url_verbatim_as_tab(tmp_path):
+    spec = LaunchSpec(profile=tmp_path / "p", url="https://x", app=False)
     with contextlib.ExitStack() as stack:
         resolved, deferred, primary = _prepare_pages(spec, stack, defer_page=False)
         assert (deferred, primary) == (None, None)
         assert build_args(Path("/bin/chrome"), resolved, 9222)[-1] == "https://x"
 
 
-def test_path_url_becomes_trailing_file_uri(tmp_path):
+def test_path_url_becomes_file_uri(tmp_path):
     page = _page(tmp_path)
-    spec = LaunchSpec(profile=tmp_path / "p", url=page)
+    spec = LaunchSpec(profile=tmp_path / "p", url=page, app=False)
     with contextlib.ExitStack() as stack:
         resolved, _, _ = _prepare_pages(spec, stack, defer_page=False)
         assert build_args(Path("/bin/chrome"), resolved, 9222)[-1] == page.resolve().as_uri()
 
 
-def test_app_makes_app_flag(tmp_path):
+def test_url_is_app_window_by_default(tmp_path):
     page = _page(tmp_path)
-    spec = LaunchSpec(profile=tmp_path / "p", url=page, app=True)
+    spec = LaunchSpec(profile=tmp_path / "p", url=page)  # app defaults True
     with contextlib.ExitStack() as stack:
         resolved, _, _ = _prepare_pages(spec, stack, defer_page=False)
         args = build_args(Path("/bin/chrome"), resolved, 9222)
@@ -79,7 +74,7 @@ def test_deferred_destination_starts_on_blank(tmp_path):
     # An app page: the destination is held back and the window launches on a
     # unique blank file (Chrome ignores --app=about:blank), staying an app window.
     page = _page(tmp_path)
-    spec = LaunchSpec(profile=tmp_path / "p", url=page, app=True)
+    spec = LaunchSpec(profile=tmp_path / "p", url=page)  # app defaults True
     with contextlib.ExitStack() as stack:
         resolved, deferred, primary = _prepare_pages(spec, stack, defer_page=True)
         assert deferred == page.resolve().as_uri()

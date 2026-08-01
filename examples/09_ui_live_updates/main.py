@@ -7,7 +7,7 @@ polls; Python drives.
 
 Headed: needs a desktop session. Close the window to exit.
 
-    uv run examples/08_ui_live_updates/main.py
+    uv run examples/09_ui_live_updates/main.py
 """
 
 import asyncio
@@ -113,7 +113,7 @@ async def main() -> None:
         spec = LaunchSpec(
             profile=Path(tmp) / "profile",
             headless=False,
-            url=ui / "app.html", app=True,
+            url=ui / "app.html",
             window=Window(size=(420, 340), position="center"),
         )
         browser = Browser(spec)

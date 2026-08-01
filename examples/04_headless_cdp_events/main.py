@@ -3,7 +3,7 @@
 @browser.on(...) delivers any DevTools event as a plain dict. The py_chauffeur channel
 is re-injected on every new document, so it survives navigation.
 
-    uv run examples/03_headless_cdp_events/main.py
+    uv run examples/04_headless_cdp_events/main.py
 """
 
 import asyncio

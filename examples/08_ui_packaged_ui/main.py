@@ -1,11 +1,12 @@
 """Show a local page, HTML with separate CSS and JS, without a server.
 
-LaunchSpec(url=<HTML file>, app=True) shows a local page as a chromeless app
-window (drop app=True for a tab); sibling css/js load relatively over file://.
-A filesystem Path is used in place, and an importlib.resources traversable
-(data packaged in a wheel/zip) is extracted for the browser's lifetime:
+LaunchSpec(url=<HTML file>) shows a local page as a chromeless app window (the
+default; pass app=False for a tab); sibling css/js load relatively over
+file://. A filesystem Path is used in place, and an importlib.resources
+traversable (data packaged in a wheel/zip) is extracted for the browser's
+lifetime:
 
-    LaunchSpec(profile=..., url=files("myapp") / "ui" / "app.html", app=True)
+    LaunchSpec(profile=..., url=files("myapp") / "ui" / "app.html")
 
 With Browser, the page is navigated only after the py_chauffeur channel is installed,
 so its scripts can use py_chauffeur.on / py_chauffeur.notify from their first line, no polling.
@@ -14,7 +15,7 @@ Headed: needs a desktop session. The UI starts as a native modal <dialog>
 (shown via showModal() at load); closing it (the button or the Esc key) shuts
 everything down.
 
-    uv run examples/07_ui_packaged_ui/main.py
+    uv run examples/08_ui_packaged_ui/main.py
 """
 
 import asyncio
@@ -90,7 +91,7 @@ async def main() -> None:
         spec = LaunchSpec(
             profile=Path(tmp) / "profile",
             headless=False,
-            url=ui / "app.html", app=True,
+            url=ui / "app.html",
             window=Window(size=(460, 300), position="center"),
         )
         browser = Browser(spec)

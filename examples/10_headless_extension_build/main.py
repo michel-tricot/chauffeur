@@ -9,7 +9,7 @@ chauffeur builds the spec into <profile>.extensions/<name> and loads it over
 CDP (branded Chrome 137+ ignores --load-extension). We then point the primary
 page at the extension's own chrome-extension:// page, where `py_chauffeur` is available.
 
-    uv run examples/09_headless_extension_build/main.py
+    uv run examples/10_headless_extension_build/main.py
 """
 
 import asyncio

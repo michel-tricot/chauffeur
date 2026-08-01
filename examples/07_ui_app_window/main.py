@@ -3,7 +3,7 @@
 Headed: needs a desktop session (macOS or Linux with a display). The window
 is chromeless (--app), sized and centered by the spec. Close it to exit.
 
-    uv run examples/06_ui_app_window/main.py
+    uv run examples/07_ui_app_window/main.py
 """
 
 import asyncio
@@ -62,7 +62,7 @@ async def main() -> None:
         spec = LaunchSpec(
             profile=Path(tmp) / "profile",
             headless=False,
-            url=page, app=True,
+            url=page,
             window=Window(size=(420, 320), position="center"),
         )
         browser = Browser(spec)

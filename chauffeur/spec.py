@@ -61,8 +61,9 @@ class LaunchSpec:
     # Browser, navigation happens after the py_chauffeur channel is installed, so
     # the page's scripts can use py_chauffeur.* from their first line.
     url: str | Path | Traversable | None = None
-    # Open the destination as a chromeless app window instead of a browser tab.
-    app: bool = False
+    # Open the destination as a chromeless app window (the default); set False
+    # for a normal browser tab. No effect when url is None.
+    app: bool = True
     window: Window | None = None
     # Extensions to load over CDP (Extensions.loadUnpacked), branded Chrome
     # 137+ ignores --load-extension, so CDP is the only reliable path and
@@ -84,10 +85,6 @@ class LaunchSpec:
     # send their real UA); None leaves the browser default untouched.
     user_agent: str | Literal["auto"] | None = None
     extra_flags: tuple[str, ...] = ()
-
-    def __post_init__(self) -> None:
-        if self.app and self.url is None:
-            raise ValueError("app=True needs a url to open")
 
 
 def build_args(binary: Path, spec: LaunchSpec, port: int, *, screen: tuple[int, int] | None = None) -> list[str]:

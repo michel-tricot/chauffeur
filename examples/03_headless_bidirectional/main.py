@@ -5,7 +5,7 @@ py_chauffeur.call(...). The page registers handlers with py_chauffeur.on(...); P
 with browser.call(...). Dataclass annotations get validated params and
 serialized results; bad input comes back as a rejection, never a hang.
 
-    uv run examples/02_headless_bidirectional/main.py
+    uv run examples/03_headless_bidirectional/main.py
 """
 
 import asyncio
