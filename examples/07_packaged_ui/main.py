@@ -1,0 +1,105 @@
+"""Show a local page — HTML with separate CSS and JS — without a server.
+
+LaunchSpec(app_page=...) (or page=... for a tab) takes an HTML file; sibling
+css/js load relatively over file://. A filesystem Path is used in place, and
+an importlib.resources traversable (data packaged in a wheel/zip) is
+extracted automatically for the browser's lifetime:
+
+    LaunchSpec(profile=..., app_page=files("myapp") / "ui" / "app.html")
+
+With Browser, the page is navigated only after the py channel is installed,
+so its scripts can use py.on / py.notify from their first line — no polling.
+
+Headed: needs a desktop session. The UI starts as a native modal <dialog>
+(shown via showModal() at load); closing it — the button or the Esc key —
+shuts everything down.
+
+    uv run examples/07_packaged_ui/main.py
+"""
+
+import asyncio
+import tempfile
+from pathlib import Path
+
+from chauffeur import Browser, LaunchSpec, Window
+
+HTML = """<!doctype html>
+<html>
+<head>
+  <title>packaged ui</title>
+  <link rel="stylesheet" href="style.css">
+  <script defer src="app.js"></script>
+</head>
+<body>
+  <dialog id="dlg">
+    <h1 id="status">booting…</h1>
+    <form method="dialog"><button>Done — close me</button></form>
+  </dialog>
+</body>
+</html>
+"""
+
+CSS = """body { background: rgb(20, 30, 40); }
+dialog {
+  font-family: system-ui;
+  text-align: center;
+  padding: 1.5rem 2rem;
+  border: none;
+  border-radius: 0.8rem;
+  box-shadow: 0 1rem 3rem rgb(0 0 0 / 0.5);
+}
+dialog::backdrop { background: rgb(0 0 0 / 0.4); backdrop-filter: blur(2px); }
+h1 { font-size: 1.2rem; }
+button { font-size: 1.1rem; padding: 0.8rem 1.2rem; }
+"""
+
+JS = """const dlg = document.querySelector("#dlg");
+py.on("set_status", async ({ text }) => {
+  document.querySelector("#status").textContent = text;
+  return "status set to: " + text;
+});
+// Fires for the form button and for Esc alike.
+dlg.addEventListener("close", () => py.notify("close_clicked", {}));
+dlg.showModal();
+py.notify("ui_ready", { title: document.title });
+"""
+
+
+async def main() -> None:
+    with tempfile.TemporaryDirectory() as tmp:
+        ui = Path(tmp) / "ui"
+        ui.mkdir()
+        (ui / "app.html").write_text(HTML)
+        (ui / "style.css").write_text(CSS)
+        (ui / "app.js").write_text(JS)
+
+        spec = LaunchSpec(
+            profile=Path(tmp) / "profile",
+            headless=False,
+            app_page=ui / "app.html",
+            window=Window(size=(460, 300), position="center"),
+        )
+        browser = Browser(spec)
+        ready = asyncio.Event()
+        done = asyncio.Event()
+
+        @browser.command()
+        def ui_ready(params: dict) -> None:
+            print("page says it is ready:", params)
+            ready.set()
+
+        @browser.command()
+        def close_clicked() -> None:
+            print("dialog closed — shutting down")
+            done.set()
+
+        async with browser:
+            await asyncio.wait_for(ready.wait(), timeout=15)
+            print("js replied:", await browser.call("set_status", {"text": "close this dialog to exit"}))
+            # Unblocks on the dialog closing OR the window being closed.
+            await browser.serve(until=done)
+        print("bye")
+
+
+if __name__ == "__main__":
+    asyncio.run(main())
