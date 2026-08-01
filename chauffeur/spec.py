@@ -72,6 +72,11 @@ class LaunchSpec:
     # so a bumped installed version is picked up automatically; a plain Path
     # loads a pre-built directory as-is.
     extensions: tuple[ExtensionSpec | Path, ...] = ()
+    # Auto-attach a py_chauffeur channel into each loaded extension's service
+    # worker (so its code can call/handle commands and browser.extension(id)
+    # works). Set False to load extensions without giving their workers a
+    # channel (and without keeping them attached/alive).
+    attach_extensions: bool = True
     # Enables Extensions.loadUnpacked; implied by extensions.
     extension_debugging: bool = False
     minimal_footprint: bool = True

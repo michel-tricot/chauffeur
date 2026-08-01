@@ -26,6 +26,7 @@ more advanced extension use cases last.
 | `09_ui_live_updates` | Python pushes updates into the page every second: clock, load average, pulse |
 | `10_headless_extension_build` | Patch a local extension so its own page calls a Python command; injected config drives the behavior |
 | `11_headless_extension_store` | Pull a real extension from the Chrome Web Store, add a page to it, and drive it via a command (needs network) |
+| `12_headless_extension_worker` | Talk to an extension's service worker over `py_chauffeur` (both directions), no page or WebSocket |
 
 All examples use a throwaway profile in a temp directory; nothing touches your
 real browser profile.

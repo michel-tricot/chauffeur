@@ -22,9 +22,11 @@ from __future__ import annotations
 
 import asyncio
 import contextlib
+import contextvars
 import json
 import subprocess
 from collections.abc import Callable
+from dataclasses import dataclass
 from importlib.resources import files
 from typing import Any, Literal
 
@@ -39,6 +41,27 @@ _BINDING = "__chauffeur_dispatch"
 _PY_JS = files("chauffeur.js").joinpath("py.js").read_text()
 
 ServeReason = Literal["until", "page-closed", "connection-lost"]
+
+
+@dataclass(frozen=True)
+class Caller:
+    """Who invoked the currently-running @command handler."""
+
+    session_id: str
+    extension_id: str | None = None  # None for the primary page
+
+    @property
+    def is_extension(self) -> bool:
+        return self.extension_id is not None
+
+
+_CALLER: contextvars.ContextVar[Caller | None] = contextvars.ContextVar("chauffeur_caller", default=None)
+
+
+def caller() -> Caller | None:
+    """Inside a @command handler, the target that invoked it (the primary page,
+    or an extension service worker with its extension_id). None outside dispatch."""
+    return _CALLER.get()
 
 
 class JSError(RuntimeError):
@@ -59,6 +82,9 @@ class Browser:
         self.extension_ids: list[str] = []
         self._session_id: str | None = None
         self._target_id: str | None = None
+        # PROTOTYPE: extension_id -> attached service-worker session id. Filled
+        # by _on_attached as workers spawn; used by extension() for the channel.
+        self._ext_sessions: dict[str, str] = {}
         # Set when the primary window/tab is closed. Chrome itself may keep
         # running (macOS keeps the process alive with zero windows), so this,
         # not the connection dropping, is the "user closed the app" signal.
@@ -84,17 +110,25 @@ class Browser:
     # -- python -> browser ---------------------------------------------------
 
     async def call(self, command: str, params: Any = None, *, timeout: float = 30.0) -> Any:
-        """Invoke a JS handler registered via py_chauffeur.on(command, ...)."""
-        envelope = json.dumps({"command": command, "params": serde.to_wire(params)})
-        return await self.evaluate(f"py_chauffeur._handle({envelope})", timeout=timeout)
+        """Invoke a JS handler registered via py_chauffeur.on(command, ...) in the primary page."""
+        assert self._session_id, "browser not started"
+        return await self._call(self._session_id, command, params, timeout=timeout)
 
     async def evaluate(self, expression: str, *, await_promise: bool = True, timeout: float = 30.0) -> Any:
         """Run arbitrary JS in the primary session and return its value."""
-        assert self.cdp and self._session_id, "browser not started"
-        result = await self.cdp.send(
+        assert self._session_id, "browser not started"
+        return await self._evaluate(self._session_id, expression, await_promise=await_promise, timeout=timeout)
+
+    # Per-session channel core: shared by the primary page and every extension
+    # worker channel (see ExtensionChannel), so call/evaluate are written once.
+
+    async def _evaluate(self, session_id: str, expression: str, *, await_promise: bool = True, timeout: float = 30.0) -> Any:
+        cdp = self.cdp
+        assert cdp is not None, "browser not started"
+        result = await cdp.send(
             "Runtime.evaluate",
             {"expression": expression, "awaitPromise": await_promise, "returnByValue": True},
-            session_id=self._session_id,
+            session_id=session_id,
             timeout=timeout,
         )
         details = result.get("exceptionDetails")
@@ -104,6 +138,10 @@ class Browser:
             )
             raise JSError(description)
         return (result.get("result") or {}).get("value")
+
+    async def _call(self, session_id: str, command: str, params: Any = None, *, timeout: float = 30.0) -> Any:
+        envelope = json.dumps({"command": command, "params": serde.to_wire(params)})
+        return await self._evaluate(session_id, f"py_chauffeur._handle({envelope})", timeout=timeout)
 
     async def navigate(self, url: str, *, wait: Literal["load"] | None = None, timeout: float = 30.0) -> None:
         """Navigate the primary target; raises CDPError when Chrome refuses the
@@ -161,6 +199,23 @@ class Browser:
             cdp = self.cdp = await CDPClient.connect(self.handle.port)
             for event, fn in self._cdp_listeners:
                 cdp.on(event, fn)
+            if self.handle.extensions and self._spec.attach_extensions:
+                # Auto-attach extension service workers (filtered to workers, so
+                # the primary-page attach below is untouched) and pause each at
+                # start (waitForDebuggerOnStart) so py_chauffeur is installed
+                # BEFORE the worker's own top-level code runs. Set up before
+                # loadUnpacked so the spawning worker is caught paused, and it
+                # re-fires on respawn so the channel survives worker eviction.
+                cdp.on("Target.attachedToTarget", self._on_attached)
+                await cdp.send(
+                    "Target.setAutoAttach",
+                    {
+                        "autoAttach": True,
+                        "waitForDebuggerOnStart": True,
+                        "flatten": True,
+                        "filter": [{"type": "service_worker"}],
+                    },
+                )
             # Branded Chrome 137+ ignores --load-extension; CDP is the only
             # reliable way to load unpacked extensions.
             self.extension_ids = []
@@ -172,7 +227,7 @@ class Browser:
             cdp.on("Target.targetDestroyed", self._on_target_destroyed)
             await cdp.send("Target.setDiscoverTargets", {"discover": True})
             self._session_id = await cdp.attach(target_id)
-            await self._install_channel(cdp, self._session_id)
+            await self._install_channel(cdp, self._session_id, is_page=True)
             if self.handle.deferred_url:
                 await self.navigate(self.handle.deferred_url)
         except BaseException:
@@ -200,41 +255,78 @@ class Browser:
                 return pages[0]["targetId"]
             return await cdp.create_target("about:blank")
 
-    async def _install_channel(self, cdp: CDPClient, session_id: str) -> None:
-        # The primary target is always a page, so the Page domain is available.
-        cdp.on("Runtime.bindingCalled", self._on_binding, session_id=session_id)
+    async def _install_channel(self, cdp: CDPClient, session_id: str, *, is_page: bool, extension_id: str | None = None) -> None:
+        """Wire py_chauffeur into one target's session. is_page targets get the
+        Page-domain persistence (survives navigation); workers get a one-shot
+        evaluate (no Page domain)."""
+        cdp.on("Runtime.bindingCalled", self._binding_handler(session_id, extension_id), session_id=session_id)
         await cdp.send("Runtime.enable", session_id=session_id)
         await cdp.send("Runtime.addBinding", {"name": _BINDING}, session_id=session_id)
-        await cdp.send("Page.enable", session_id=session_id)
-        # Install py.js for future navigations, and in the current document.
-        await cdp.send("Page.addScriptToEvaluateOnNewDocument", {"source": _PY_JS}, session_id=session_id)
+        if is_page:
+            await cdp.send("Page.enable", session_id=session_id)
+            # Install py.js for future navigations, and in the current document.
+            await cdp.send("Page.addScriptToEvaluateOnNewDocument", {"source": _PY_JS}, session_id=session_id)
         await cdp.send("Runtime.evaluate", {"expression": _PY_JS}, session_id=session_id)
 
-    async def _on_binding(self, params: dict) -> None:
-        # Async on purpose: CDPClient._emit spawns, tracks, and error-logs
-        # coroutine handlers, so dispatch needs no task bookkeeping here.
-        if params.get("name") != _BINDING:
-            return
-        try:
-            msg = json.loads(params["payload"])
-        except (KeyError, ValueError):
-            return
-        await self._handle_binding(params.get("executionContextId"), msg)
-
-    async def _handle_binding(self, context_id: int | None, msg: dict) -> None:
-        reply = await self._registry.dispatch(msg)
-        if msg.get("id") is None:  # notify(): no reply expected
-            return
+    async def _on_attached(self, params: dict) -> None:
+        """Auto-attached service worker (via setAutoAttach): install py_chauffeur
+        while it is paused at start, then resume so its own top-level code sees
+        the channel. Re-fires on respawn, so the channel survives worker eviction."""
+        info = params.get("targetInfo", {})
+        session_id = params.get("sessionId")
         cdp = self.cdp
-        if cdp is None:  # shut down while the handler ran
+        if info.get("type") != "service_worker" or not session_id or cdp is None:
             return
-        # Deliver into the context that called the binding, iframes and
-        # non-default contexts have their own py_chauffeur object with the pending promise.
-        params: dict[str, Any] = {"expression": f"py_chauffeur._deliver({json.dumps(reply)})"}
-        if context_id is not None:
-            params["contextId"] = context_id
+        ext_id = _extension_id_of(info.get("url", ""))
+        if ext_id in self.extension_ids:  # one of ours: give its worker a channel
+            await self._install_channel(cdp, session_id, is_page=False, extension_id=ext_id)
+            self._ext_sessions[ext_id] = session_id
+        # Always resume; a worker left paused would hang.
         with contextlib.suppress(Exception):
-            await cdp.send("Runtime.evaluate", params, session_id=self._session_id)
+            await cdp.send("Runtime.runIfWaitingForDebugger", session_id=session_id)
+
+    def extension(self, extension_id: str) -> ExtensionChannel:
+        """A py_chauffeur channel into a loaded extension's service worker (for
+        Python -> worker calls). Inbound worker -> Python calls arrive at
+        @command handlers automatically; caller() tells them which extension."""
+        session_id = self._ext_sessions.get(extension_id)
+        if session_id is None:
+            raise LookupError(f"no attached service worker for extension {extension_id}")
+        return ExtensionChannel(self, session_id)
+
+    def _binding_handler(self, session_id: str, extension_id: str | None = None) -> Callable:
+        """A Runtime.bindingCalled handler bound to one session, so replies go
+        back to the same target that called and caller() reflects its origin."""
+
+        async def handle(params: dict) -> None:
+            # Async on purpose: CDPClient._emit spawns, tracks, and error-logs
+            # coroutine handlers, so dispatch needs no task bookkeeping here.
+            if params.get("name") != _BINDING:
+                return
+            try:
+                msg = json.loads(params["payload"])
+            except (KeyError, ValueError):
+                return
+            token = _CALLER.set(Caller(session_id, extension_id))
+            try:
+                reply = await self._registry.dispatch(msg)
+            finally:
+                _CALLER.reset(token)
+            if msg.get("id") is None:  # notify(): no reply expected
+                return
+            cdp = self.cdp
+            if cdp is None:  # shut down while the handler ran
+                return
+            # Deliver into the context that called the binding: iframes and
+            # non-default contexts have their own py_chauffeur with the promise.
+            expr: dict[str, Any] = {"expression": f"py_chauffeur._deliver({json.dumps(reply)})"}
+            context_id = params.get("executionContextId")
+            if context_id is not None:
+                expr["contextId"] = context_id
+            with contextlib.suppress(Exception):
+                await cdp.send("Runtime.evaluate", expr, session_id=session_id)
+
+        return handle
 
     def _on_target_destroyed(self, params: dict) -> None:
         if params.get("targetId") == self._target_id:
@@ -303,3 +395,30 @@ def _check_navigation(url: str, result: dict) -> None:
     error = result.get("errorText")
     if error:
         raise CDPError(f"navigation to {url} failed: {error}")
+
+
+def _extension_id_of(url: str) -> str:
+    """The extension id from a chrome-extension://<id>/... URL, or ''."""
+    prefix = "chrome-extension://"
+    return url[len(prefix) :].split("/", 1)[0] if url.startswith(prefix) else ""
+
+
+class ExtensionChannel:
+    """A py_chauffeur channel into one extension service worker.
+
+    call()/evaluate() run against the worker's session (reusing the same
+    per-session core as the primary page), so Python can invoke
+    py_chauffeur.on(...) handlers the worker registered. Inbound (worker ->
+    Python via py_chauffeur.call) lands in the shared @command registry
+    automatically; caller() tells a handler which extension called it.
+    """
+
+    def __init__(self, browser: Browser, session_id: str) -> None:
+        self._browser = browser
+        self._session_id = session_id
+
+    async def evaluate(self, expression: str, *, await_promise: bool = True, timeout: float = 30.0) -> Any:
+        return await self._browser._evaluate(self._session_id, expression, await_promise=await_promise, timeout=timeout)
+
+    async def call(self, command: str, params: Any = None, *, timeout: float = 30.0) -> Any:
+        return await self._browser._call(self._session_id, command, params, timeout=timeout)

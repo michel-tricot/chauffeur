@@ -59,7 +59,7 @@ async def test_binding_reply_targets_calling_context(tmp_path):
         return {"pong": True}
 
     payload = json.dumps({"id": "js1", "command": "ping", "params": {}})
-    await browser._on_binding({"name": _BINDING, "payload": payload, "executionContextId": 7})
+    await browser._binding_handler(browser._session_id)({"name": _BINDING, "payload": payload, "executionContextId": 7})
 
     method, params, session = browser.cdp.sent[-1]
     assert method == "Runtime.evaluate"
@@ -219,20 +219,111 @@ async def test_notify_sends_no_reply(tmp_path):
         return "ignored"
 
     payload = json.dumps({"id": None, "command": "fire", "params": {}})
-    await browser._on_binding({"name": _BINDING, "payload": payload, "executionContextId": 7})
+    await browser._binding_handler(browser._session_id)({"name": _BINDING, "payload": payload, "executionContextId": 7})
     assert browser.cdp.sent == []
 
 
 async def test_other_bindings_are_ignored(tmp_path):
     browser = _browser(tmp_path)
-    await browser._on_binding({"name": "someone_else", "payload": "{}", "executionContextId": 1})
+    await browser._binding_handler(browser._session_id)({"name": "someone_else", "payload": "{}", "executionContextId": 1})
     assert browser.cdp.sent == []
 
 
 async def test_unknown_command_still_gets_error_reply(tmp_path):
     browser = _browser(tmp_path)
     payload = json.dumps({"id": "js2", "command": "nope", "params": {}})
-    await browser._on_binding({"name": _BINDING, "payload": payload, "executionContextId": 3})
+    await browser._binding_handler(browser._session_id)({"name": _BINDING, "payload": payload, "executionContextId": 3})
 
     _, params, _ = browser.cdp.sent[-1]
     assert _delivered(params)["error"]["type"] == "UnknownCommand"
+
+
+async def test_worker_binding_sets_caller_context(tmp_path):
+    from chauffeur import caller
+
+    browser = _browser(tmp_path)
+    seen = {}
+
+    @browser.command()
+    def whoami(params: dict) -> str:
+        c = caller()
+        seen["ext"] = c.extension_id
+        seen["is_ext"] = c.is_extension
+        return "ok"
+
+    # A binding handler bound to a worker session + extension id (what
+    # _on_attached wires up for an extension service worker).
+    handler = browser._binding_handler("worker-sess", extension_id="abcdef")
+    payload = json.dumps({"id": "w1", "command": "whoami", "params": {}})
+    await handler({"name": _BINDING, "payload": payload, "executionContextId": 1})
+
+    assert seen == {"ext": "abcdef", "is_ext": True}
+    assert browser.cdp.sent[-1][2] == "worker-sess"  # reply delivered to the worker session
+
+
+async def test_caller_is_none_outside_dispatch():
+    from chauffeur import caller
+
+    assert caller() is None
+
+
+async def test_page_binding_has_no_extension_id(tmp_path):
+    from chauffeur import caller
+
+    browser = _browser(tmp_path)
+    seen = {}
+
+    @browser.command()
+    def whoami(params: dict) -> str:
+        seen["ext"] = caller().extension_id
+        return "ok"
+
+    payload = json.dumps({"id": "p1", "command": "whoami", "params": {}})
+    await browser._binding_handler(browser._session_id)({"name": _BINDING, "payload": payload})
+    assert seen["ext"] is None
+
+
+def test_extension_without_worker_raises(tmp_path):
+    browser = _browser(tmp_path)
+    with pytest.raises(LookupError, match="no attached service worker"):
+        browser.extension("nope")
+
+
+async def test_on_attached_installs_and_readopts_worker(tmp_path):
+    browser = _browser(tmp_path)
+    browser.extension_ids = ["abcdef"]
+    worker = {"targetInfo": {"type": "service_worker", "url": "chrome-extension://abcdef/sw.js"}}
+
+    await browser._on_attached({**worker, "sessionId": "w1"})
+    assert browser._ext_sessions["abcdef"] == "w1"
+    assert ("Runtime.addBinding", {"name": _BINDING}, "w1") in browser.cdp.sent
+    assert ("Runtime.runIfWaitingForDebugger", None, "w1") in browser.cdp.sent  # resumed
+
+    # Respawn: the worker reappears as a new target/session; it is re-adopted.
+    await browser._on_attached({**worker, "sessionId": "w2"})
+    assert browser._ext_sessions["abcdef"] == "w2"
+    assert ("Runtime.addBinding", {"name": _BINDING}, "w2") in browser.cdp.sent
+
+
+async def test_on_attached_ignores_foreign_worker_but_resumes_it(tmp_path):
+    browser = _browser(tmp_path)
+    browser.extension_ids = ["abcdef"]
+    other = {"targetInfo": {"type": "service_worker", "url": "chrome-extension://other/sw.js"}, "sessionId": "w9"}
+    await browser._on_attached(other)
+    assert "other" not in browser._ext_sessions
+    # Still resumed, so a worker we don't own is never left hanging on the debugger.
+    assert ("Runtime.runIfWaitingForDebugger", None, "w9") in browser.cdp.sent
+    assert not any(m == "Runtime.addBinding" and s == "w9" for m, _, s in browser.cdp.sent)
+
+
+def test_extension_id_of():
+    from chauffeur.browser import _extension_id_of
+
+    assert _extension_id_of("chrome-extension://abcdef/service_worker.js") == "abcdef"
+    assert _extension_id_of("chrome-extension://abcdef/") == "abcdef"
+    assert _extension_id_of("https://example.com/x") == ""
+
+
+def test_attach_extensions_defaults_true(tmp_path):
+    assert LaunchSpec(profile=tmp_path / "p").attach_extensions is True
+    assert LaunchSpec(profile=tmp_path / "p", attach_extensions=False).attach_extensions is False

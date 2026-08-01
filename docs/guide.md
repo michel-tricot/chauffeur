@@ -158,6 +158,28 @@ automatically. Loading happens over CDP (`Extensions.loadUnpacked`, ids on
 `--load-extension`. Extensions therefore load when driving the browser through
 `Browser`, not bare `launch()`.
 
+### Talk to an extension's service worker
+
+Loading an extension also gives its MV3 service worker a `py_chauffeur` channel,
+installed before the worker's own code runs and re-installed if the worker
+respawns. So the extension's worker can call your `@command` handlers, and you
+can drive handlers it registered:
+
+```python
+# In the worker (e.g. background.js), py_chauffeur is already available:
+#   py_chauffeur.on("sign", async ({payload}) => { ... });
+#   py_chauffeur.call("worker_ready", {});     // -> your @browser.command
+
+async with browser:
+    ext_id = browser.extension_ids[0]
+    signed = await browser.extension(ext_id).call("sign", {"payload": data})
+```
+
+Inbound worker calls land in the shared command registry; `caller()` tells a
+handler which extension invoked it (`caller().extension_id`). This replaces the
+WebSocket-bridge transport an extension-driving daemon would otherwise hand-roll.
+Pass `LaunchSpec(attach_extensions=False)` to load an extension without a channel.
+
 ## Replay a captured User-Agent (Cloudflare)
 
 Headless Chromium sends a `HeadlessChrome/x.y` UA that Cloudflare rejects, and a

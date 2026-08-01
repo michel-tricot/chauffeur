@@ -7,6 +7,9 @@ the source.
 
 ::: chauffeur.Browser
 ::: chauffeur.SyncBrowser
+::: chauffeur.ExtensionChannel
+::: chauffeur.caller
+::: chauffeur.Caller
 
 ## Launch configuration
 

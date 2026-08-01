@@ -8,7 +8,7 @@ directions with a decorator-based command API.
 # source classes (use ExtensionSpec / ExtensionSpec.from_store), and the
 # lower-level UA helpers (use Browser.capture_user_agent / user_agent="auto")
 # stay reachable via their submodules but are intentionally not re-exported.
-from chauffeur.browser import Browser, JSError, ServeReason
+from chauffeur.browser import Browser, Caller, ExtensionChannel, JSError, ServeReason, caller
 from chauffeur.browsers import BrowserInfo, BrowserNotFoundError, installed_browsers, resolve_browser
 from chauffeur.cdp import CDPClient, CDPError
 from chauffeur.extension import (
@@ -33,6 +33,8 @@ __all__ = [
     "BrowserNotFoundError",
     "CDPClient",
     "CDPError",
+    "Caller",
+    "ExtensionChannel",
     "ExtensionNotFoundError",
     "ExtensionSpec",
     "JSError",
@@ -44,6 +46,7 @@ __all__ = [
     "SyncBrowser",
     "Window",
     "build_extension",
+    "caller",
     "download_extension",
     "extensions_dir",
     "find_installed_extension",
