@@ -202,7 +202,6 @@ class StoreExtension(ExtensionSource):
     """
 
     extension_id: str
-    prodversion: str = _STORE_PRODVERSION
     refresh: bool = False
     timeout: float = 30.0  # per-download timeout (seconds) for the store fetch
     cache_dir: Path | None = None  # overrides the build-provided cache location
@@ -216,7 +215,7 @@ class StoreExtension(ExtensionSource):
         if have_copy and not self.refresh:
             return cached
         try:
-            download_extension(self.extension_id, cached, prodversion=self.prodversion, timeout=self.timeout)
+            download_extension(self.extension_id, cached, timeout=self.timeout)
         except ExtensionNotFoundError as exc:
             if not have_copy:
                 raise
@@ -276,18 +275,17 @@ class ExtensionSpec:
 
     def __init__(self, source: Path | str | ExtensionSource, *, worker_channel: bool = True) -> None:
         self.source: ExtensionSource = source if isinstance(source, ExtensionSource) else LocalExtension(Path(source))
-        self.patches: list[Callable[[Path], None]] = []
+        self._patches: list[Callable[[Path], None]] = []
         # When driven by Browser, auto-attach a py_chauffeur channel into this
         # extension's service worker (so its code can call/handle commands and
         # browser.extension(id) works). False loads it without a channel.
         self.worker_channel = worker_channel
 
     @classmethod
-    def from_store(  # noqa: PLR0913 — a store pull has several independent knobs
+    def from_store(
         cls,
         extension_id: str,
         *,
-        prodversion: str = _STORE_PRODVERSION,
         refresh: bool = False,
         timeout: float = 30.0,
         cache_dir: Path | None = None,
@@ -302,7 +300,7 @@ class ExtensionSpec:
         service-worker py_chauffeur channel (see the constructor).
         """
         return cls(
-            StoreExtension(extension_id, prodversion, refresh=refresh, timeout=timeout, cache_dir=cache_dir),
+            StoreExtension(extension_id, refresh=refresh, timeout=timeout, cache_dir=cache_dir),
             worker_channel=worker_channel,
         )
 
@@ -325,7 +323,7 @@ class ExtensionSpec:
             target.parent.mkdir(parents=True, exist_ok=True)
             target.write_bytes(content) if isinstance(content, bytes) else target.write_text(content)
 
-        self.patches.append(patch)
+        self._patches.append(patch)
         return self
 
     def append(self, relative: str, text: str) -> ExtensionSpec:
@@ -333,7 +331,7 @@ class ExtensionSpec:
             target = root / relative
             target.write_text(target.read_text() + "\n" + text)
 
-        self.patches.append(patch)
+        self._patches.append(patch)
         return self
 
     def inject_config(self, relative: str, config: dict) -> ExtensionSpec:
@@ -344,7 +342,7 @@ class ExtensionSpec:
             target = root / relative
             target.write_text(payload + target.read_text())
 
-        self.patches.append(patch)
+        self._patches.append(patch)
         return self
 
     def patch(self, relative: str, transform: Callable[[str], str]) -> ExtensionSpec:
@@ -352,7 +350,7 @@ class ExtensionSpec:
             target = root / relative
             target.write_text(transform(target.read_text()))
 
-        self.patches.append(apply)
+        self._patches.append(apply)
         return self
 
     def patch_manifest(self, transform: Callable[[dict], dict]) -> ExtensionSpec:
@@ -361,20 +359,20 @@ class ExtensionSpec:
             manifest = json.loads(path.read_text())
             path.write_text(json.dumps(transform(manifest), indent=2))
 
-        self.patches.append(apply)
+        self._patches.append(apply)
         return self
 
 
-def build_extension(spec: ExtensionSpec, workdir: Path, *, cache_dir: Path | None = None) -> Path:
+def build_extension(spec: ExtensionSpec, workdir: Path) -> Path:
     """Materialize ``spec`` into ``workdir`` and return it.
 
     Copies the (possibly downloaded) source into workdir, then applies the
     recorded patches. Idempotent: re-run to pick up a bumped local source (a
-    store download is cached in ``cache_dir``, defaulting beside workdir).
+    store download is cached beside workdir, unless the spec pins its own
+    ``cache_dir``).
     """
     workdir = workdir.expanduser().resolve()
-    cache = Path(cache_dir).expanduser() if cache_dir else workdir.parent
-    source = spec.source.resolve(cache).resolve()
+    source = spec.source.resolve(workdir.parent).resolve()
     if workdir.is_relative_to(source) or source.is_relative_to(workdir):
         raise ValueError(f"workdir {workdir} overlaps extension source {source}")
     if workdir.exists():
@@ -387,6 +385,6 @@ def build_extension(spec: ExtensionSpec, workdir: Path, *, cache_dir: Path | Non
     # Strip _metadata from any source (a store cache from before the download-time
     # strip, or a local dir that happens to contain one) so the build always loads.
     _strip_unloadable(workdir)
-    for patch in spec.patches:
+    for patch in spec._patches:
         patch(workdir)
     return workdir

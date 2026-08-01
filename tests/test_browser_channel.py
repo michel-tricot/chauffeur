@@ -176,7 +176,7 @@ class TargetsStubCDP(StubCDP):
 
 async def test_primary_target_prefers_launch_tab_over_restored(tmp_path):
     browser = Browser(LaunchSpec(profile=tmp_path / "p"))
-    browser.handle = SimpleNamespace(primary_url="file:///scratch/blank.html")
+    browser.handle = SimpleNamespace(_primary_url="file:///scratch/blank.html")
     cdp = TargetsStubCDP(
         [
             [
@@ -190,7 +190,7 @@ async def test_primary_target_prefers_launch_tab_over_restored(tmp_path):
 
 async def test_primary_target_waits_for_lagging_launch_tab(tmp_path):
     browser = Browser(LaunchSpec(profile=tmp_path / "p"))
-    browser.handle = SimpleNamespace(primary_url="file:///scratch/blank.html")
+    browser.handle = SimpleNamespace(_primary_url="file:///scratch/blank.html")
     cdp = TargetsStubCDP(
         [
             [{"type": "page", "url": "about:blank", "targetId": "restored"}],

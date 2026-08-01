@@ -198,13 +198,13 @@ class BrowserHandle:
     binary: Path
     # Resources that must outlive the process (extracted page dirs); closed by
     # terminate().
-    cleanup: contextlib.ExitStack | None = None
-    # Set when launch(defer_page=True) held back spec.url so the consumer can
-    # navigate to it after wiring its channel.
-    deferred_url: str | None = None
+    _cleanup: contextlib.ExitStack | None = None
+    # Set when launch(_defer_page=True) held back spec.url so Browser.start()
+    # can navigate to it after wiring its channel.
+    _deferred_url: str | None = None
     # The unique blank URI the primary tab launched on when deferral is active;
     # identifies that tab among session-restored ones.
-    primary_url: str | None = None
+    _primary_url: str | None = None
     # Built extension dirs, ready for Extensions.loadUnpacked over CDP.
     extensions: tuple[Path, ...] = ()
 
@@ -222,18 +222,20 @@ class BrowserHandle:
                     self.proc.kill()
                     self.proc.wait(5)
         finally:
-            if self.cleanup is not None:
-                self.cleanup.close()
+            if self._cleanup is not None:
+                self._cleanup.close()
 
 
-def launch(spec: LaunchSpec, *, ready_timeout: float = 15.0, defer_page: bool = False) -> BrowserHandle:
+def launch(spec: LaunchSpec, *, ready_timeout: float = 15.0, _defer_page: bool = False) -> BrowserHandle:
+    # _defer_page is Browser.start()'s protocol (launch on a blank page, navigate
+    # after the channel is wired), not part of the public launch contract.
     info = resolve_browser(spec.browser)
     port = spec.devtools_port or free_port()
     stack = contextlib.ExitStack()
     try:
         _warn_if_real_profile(spec.profile)
         extensions = _materialize_extensions(spec)
-        spec, deferred_url, primary_url = _prepare_pages(spec, stack, defer_page)
+        spec, deferred_url, primary_url = _prepare_pages(spec, stack, _defer_page)
         spec.profile.expanduser().mkdir(parents=True, exist_ok=True)
         _apply_ui_prefs(spec)
         # A named (string) position needs the screen size to resolve; explicit
@@ -248,9 +250,9 @@ def launch(spec: LaunchSpec, *, ready_timeout: float = 15.0, defer_page: bool = 
         proc,
         port,
         info.binary,
-        cleanup=stack,
-        deferred_url=deferred_url,
-        primary_url=primary_url,
+        _cleanup=stack,
+        _deferred_url=deferred_url,
+        _primary_url=primary_url,
         extensions=extensions,
     )
     deadline = time.monotonic() + ready_timeout

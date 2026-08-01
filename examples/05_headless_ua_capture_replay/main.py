@@ -12,7 +12,8 @@ import asyncio
 import tempfile
 from pathlib import Path
 
-from chauffeur import Browser, LaunchSpec, ua_cache_path
+from chauffeur import Browser, LaunchSpec
+from chauffeur.ua import ua_cache_path
 
 
 async def main() -> None:

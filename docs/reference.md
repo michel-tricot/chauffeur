@@ -28,23 +28,16 @@ the source.
 
 ::: chauffeur.ExtensionSpec
 ::: chauffeur.build_extension
-::: chauffeur.download_extension
 ::: chauffeur.find_installed_extension
-::: chauffeur.extensions_dir
 
 ## Low-level CDP
 
 ::: chauffeur.CDPClient
 
-## User-Agent
-
-::: chauffeur.ua_cache_path
-
 ## Profiles
 
 ::: chauffeur.wipe_profile
-::: chauffeur.profiles.close_running_browser
-::: chauffeur.profiles.running_devtools_port
+::: chauffeur.close_running_browser
 
 ## Errors
 

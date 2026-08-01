@@ -73,8 +73,6 @@ class LaunchSpec:
     # so a bumped installed version is picked up automatically; a plain Path
     # loads a pre-built directory as-is.
     extensions: tuple[ExtensionSpec | Path, ...] = ()
-    # Enables Extensions.loadUnpacked; implied by extensions.
-    extension_debugging: bool = False
     minimal_footprint: bool = True
     # Headed windows start clean by default (no bookmarks bar or startup
     # clutter), so a window can be presented as an app or dialog rather than a
@@ -102,7 +100,7 @@ def build_args(binary: Path, spec: LaunchSpec, port: int, *, screen: tuple[int, 
     user_agent = _resolve_ua(binary, spec)
     if user_agent:
         args.append(f"--user-agent={user_agent}")
-    if spec.extension_debugging or spec.extensions:
+    if spec.extensions:
         args.append("--enable-unsafe-extension-debugging")
     if spec.minimal_footprint:
         args.extend(MINIMAL_FOOTPRINT_FLAGS)

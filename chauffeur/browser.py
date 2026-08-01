@@ -194,11 +194,11 @@ class Browser:
     # -- lifecycle -----------------------------------------------------------
 
     async def start(self) -> Browser:
-        # defer_page: the destination (spec.url) starts on a unique blank page
+        # _defer_page: the destination (spec.url) starts on a unique blank page
         # and is navigated below, after the channel exists — page scripts can use
         # py_chauffeur right away, and the blank page identifies the launch tab
         # among session-restored ones.
-        self.handle = await asyncio.to_thread(launch, self._spec, defer_page=True)
+        self.handle = await asyncio.to_thread(launch, self._spec, _defer_page=True)
         try:
             cdp = self.cdp = await CDPClient.connect(self.handle.port)
             for event, fn in self._cdp_listeners:
@@ -240,8 +240,8 @@ class Browser:
             await cdp.send("Target.setDiscoverTargets", {"discover": True})
             self._session_id = await cdp.attach(target_id)
             await self._install_channel(cdp, self._session_id, is_page=True)
-            if self.handle.deferred_url:
-                await self.navigate(self.handle.deferred_url)
+            if self.handle._deferred_url:
+                await self.navigate(self.handle._deferred_url)
         except BaseException:
             await self.aclose()
             raise
@@ -249,10 +249,10 @@ class Browser:
 
     async def _primary_target(self, cdp: CDPClient) -> str:
         # Prefer the launch tab, identified by the unique blank page it opened
-        # on (handle.primary_url): with session restore in the profile, "first
+        # on (handle._primary_url): with session restore in the profile, "first
         # page target" may be an unrelated restored tab. The launch tab can lag
         # the DevTools port coming up, so give it a moment to appear.
-        marker = self.handle.primary_url if self.handle else None
+        marker = self.handle._primary_url if self.handle else None
         deadline = asyncio.get_running_loop().time() + 2.0
         while True:
             pages = [t for t in await cdp.targets() if t.get("type") == "page"]
