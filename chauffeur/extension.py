@@ -96,7 +96,7 @@ class ExtensionBuild:
     def build(self) -> Path:
         source = self.source.expanduser().resolve()
         workdir = self.workdir.expanduser().resolve()
-        if workdir == source or source in workdir.parents or workdir in source.parents:
+        if workdir.is_relative_to(source) or source.is_relative_to(workdir):
             raise ValueError(f"workdir {workdir} overlaps extension source {source}")
         if workdir.exists():
             # Only delete what looks like a previous build; a mistyped workdir

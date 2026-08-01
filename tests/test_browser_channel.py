@@ -25,8 +25,9 @@ def _browser(tmp_path):
     return browser
 
 
-async def _drain(browser):
-    await asyncio.gather(*browser._tasks)
+def _delivered(params):
+    """The reply envelope inside a py._deliver(...) evaluate expression."""
+    return json.loads(params["expression"].removeprefix("py._deliver(").removesuffix(")"))
 
 
 async def test_binding_reply_targets_calling_context(tmp_path):
@@ -37,15 +38,13 @@ async def test_binding_reply_targets_calling_context(tmp_path):
         return {"pong": True}
 
     payload = json.dumps({"id": "js1", "command": "ping", "params": {}})
-    browser._on_binding({"name": _BINDING, "payload": payload, "executionContextId": 7})
-    await _drain(browser)
+    await browser._on_binding({"name": _BINDING, "payload": payload, "executionContextId": 7})
 
     method, params, session = browser.cdp.sent[-1]
     assert method == "Runtime.evaluate"
     assert session == "sess"
     assert params["contextId"] == 7
-    reply = json.loads(params["expression"].removeprefix("py._deliver(").removesuffix(")"))
-    assert reply == {"id": "js1", "result": {"pong": True}}
+    assert _delivered(params) == {"id": "js1", "result": {"pong": True}}
 
 
 async def test_navigate_uses_primary_session(tmp_path):
@@ -92,24 +91,20 @@ async def test_notify_sends_no_reply(tmp_path):
         return "ignored"
 
     payload = json.dumps({"id": None, "command": "fire", "params": {}})
-    browser._on_binding({"name": _BINDING, "payload": payload, "executionContextId": 7})
-    await _drain(browser)
+    await browser._on_binding({"name": _BINDING, "payload": payload, "executionContextId": 7})
     assert browser.cdp.sent == []
 
 
 async def test_other_bindings_are_ignored(tmp_path):
     browser = _browser(tmp_path)
-    browser._on_binding({"name": "someone_else", "payload": "{}", "executionContextId": 1})
-    await _drain(browser)
+    await browser._on_binding({"name": "someone_else", "payload": "{}", "executionContextId": 1})
     assert browser.cdp.sent == []
 
 
 async def test_unknown_command_still_gets_error_reply(tmp_path):
     browser = _browser(tmp_path)
     payload = json.dumps({"id": "js2", "command": "nope", "params": {}})
-    browser._on_binding({"name": _BINDING, "payload": payload, "executionContextId": 3})
-    await _drain(browser)
+    await browser._on_binding({"name": _BINDING, "payload": payload, "executionContextId": 3})
 
     _, params, _ = browser.cdp.sent[-1]
-    reply = json.loads(params["expression"].removeprefix("py._deliver(").removesuffix(")"))
-    assert reply["error"]["type"] == "UnknownCommand"
+    assert _delivered(params)["error"]["type"] == "UnknownCommand"

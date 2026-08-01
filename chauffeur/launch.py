@@ -64,6 +64,11 @@ def _extract_tree(src: Traversable, dest: Path) -> None:
             target.write_bytes(item.read_bytes())
 
 
+def _scratch_dir(stack: contextlib.ExitStack) -> Path:
+    """A temp dir that lives until the stack (i.e. the browser) is done."""
+    return Path(stack.enter_context(tempfile.TemporaryDirectory(prefix="chauffeur-page-")))
+
+
 def _page_to_uri(page: Path | Traversable, stack: contextlib.ExitStack) -> str:
     """file:// URI for a local page; packaged resources are extracted first.
 
@@ -78,7 +83,7 @@ def _page_to_uri(page: Path | Traversable, stack: contextlib.ExitStack) -> str:
             raise LaunchError(f"page not found: {page}")
         return page.resolve().as_uri()
     parent = getattr(page, "parent", None)  # zipfile.Path has it; bare Traversables may not
-    tmp = Path(stack.enter_context(tempfile.TemporaryDirectory(prefix="chauffeur-page-")))
+    tmp = _scratch_dir(stack)
     if parent is not None and parent.is_dir():
         _extract_tree(parent, tmp)
     else:
@@ -92,8 +97,7 @@ def _blank_page_uri(stack: contextlib.ExitStack) -> str:
     Chrome silently ignores --app=about:blank (it opens a tabbed window
     instead of an app window), so deferral needs an actual file URL.
     """
-    tmp = Path(stack.enter_context(tempfile.TemporaryDirectory(prefix="chauffeur-page-")))
-    blank = tmp / "blank.html"
+    blank = _scratch_dir(stack) / "blank.html"
     blank.write_text("<!doctype html><title></title>")
     return blank.as_uri()
 
@@ -139,6 +143,8 @@ def _apply_ui_prefs(spec: LaunchSpec) -> None:
     bar = prefs.get("bookmark_bar")
     if not isinstance(bar, dict):
         bar = prefs["bookmark_bar"] = {}
+    if bar.get("show_on_all_tabs") == spec.show_browser_ui:
+        return  # already right — don't churn a file Chrome also owns
     bar["show_on_all_tabs"] = spec.show_browser_ui
     prefs_path.parent.mkdir(parents=True, exist_ok=True)
     prefs_path.write_text(json.dumps(prefs))

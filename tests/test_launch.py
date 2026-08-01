@@ -31,6 +31,16 @@ def test_existing_prefs_are_preserved(tmp_path):
     assert prefs["bookmark_bar"] == {"custom": 2, "show_on_all_tabs": False}
 
 
+def test_unchanged_prefs_are_not_rewritten(tmp_path):
+    profile = tmp_path / "prof"
+    default = profile / "Default"
+    default.mkdir(parents=True)
+    text = '{ "bookmark_bar": { "show_on_all_tabs": false } }'  # distinctive formatting
+    (default / "Preferences").write_text(text)
+    _apply_ui_prefs(LaunchSpec(profile=profile, headless=False))
+    assert (default / "Preferences").read_text() == text
+
+
 def test_headless_leaves_profile_untouched(tmp_path):
     profile = tmp_path / "prof"
     _apply_ui_prefs(LaunchSpec(profile=profile, headless=True))

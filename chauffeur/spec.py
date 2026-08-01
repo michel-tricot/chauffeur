@@ -64,6 +64,7 @@ class LaunchSpec:
 
 
 def build_args(binary: Path, spec: LaunchSpec, port: int, *, screen: tuple[int, int] | None = None) -> list[str]:
+    assert spec.page is None and spec.app_page is None, "resolve page/app_page via launch() first"
     args = [
         str(binary),
         f"--remote-debugging-port={port}",

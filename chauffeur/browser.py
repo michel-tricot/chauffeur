@@ -28,7 +28,7 @@ from importlib.resources import files
 from typing import Any
 
 from chauffeur import serde
-from chauffeur.cdp import CDPClient, CDPError
+from chauffeur.cdp import CDPClient
 from chauffeur.dispatch import CommandRegistry
 from chauffeur.launch import BrowserHandle, launch
 from chauffeur.spec import LaunchSpec
@@ -43,7 +43,6 @@ class Browser:
         self._spec = spec
         self._registry = CommandRegistry()
         self._cdp_listeners: list[tuple[str, Callable]] = []
-        self._tasks: set[asyncio.Task] = set()
         self.handle: BrowserHandle | None = None
         self.cdp: CDPClient | None = None
         self._session_id: str | None = None
@@ -138,31 +137,27 @@ class Browser:
         return await cdp.create_target(self._spec.url or "about:blank")
 
     async def _install_channel(self, cdp: CDPClient, session_id: str) -> None:
+        # The primary target is always a page, so the Page domain is available.
         cdp.on("Runtime.bindingCalled", self._on_binding, session_id=session_id)
         await cdp.send("Runtime.enable", session_id=session_id)
         await cdp.send("Runtime.addBinding", {"name": _BINDING}, session_id=session_id)
-        try:
-            # Page domain only exists on page targets; workers just get the
-            # direct evaluate below.
-            await cdp.send("Page.enable", session_id=session_id)
-            # Install py.js for future navigations, and in the current document.
-            await cdp.send(
-                "Page.addScriptToEvaluateOnNewDocument", {"source": _PY_JS}, session_id=session_id
-            )
-        except CDPError:
-            pass
+        await cdp.send("Page.enable", session_id=session_id)
+        # Install py.js for future navigations, and in the current document.
+        await cdp.send(
+            "Page.addScriptToEvaluateOnNewDocument", {"source": _PY_JS}, session_id=session_id
+        )
         await cdp.send("Runtime.evaluate", {"expression": _PY_JS}, session_id=session_id)
 
-    def _on_binding(self, params: dict) -> None:
+    async def _on_binding(self, params: dict) -> None:
+        # Async on purpose: CDPClient._emit spawns, tracks, and error-logs
+        # coroutine handlers, so dispatch needs no task bookkeeping here.
         if params.get("name") != _BINDING:
             return
         try:
             msg = json.loads(params["payload"])
         except (KeyError, ValueError):
             return
-        task = asyncio.ensure_future(self._handle_binding(params.get("executionContextId"), msg))
-        self._tasks.add(task)
-        task.add_done_callback(self._tasks.discard)
+        await self._handle_binding(params.get("executionContextId"), msg)
 
     async def _handle_binding(self, context_id: int | None, msg: dict) -> None:
         reply = await self._registry.dispatch(msg)
