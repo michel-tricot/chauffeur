@@ -7,7 +7,7 @@ handlers the worker registered via browser.extension(id) (Python -> worker).
 caller() tells a command which extension invoked it. This is the channel a
 daemon would otherwise hand-roll with a WebSocket server.
 
-Set LaunchSpec(attach_extensions=False) to load an extension without a channel.
+Set ExtensionSpec(src, worker_channel=False) to load one without a channel.
 
     uv run examples/12_headless_extension_worker/main.py
 """

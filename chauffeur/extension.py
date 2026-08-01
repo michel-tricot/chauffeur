@@ -274,9 +274,13 @@ class ExtensionSpec:
     means declare-vs-execute, not JSON-able config.)
     """
 
-    def __init__(self, source: Path | str | ExtensionSource) -> None:
+    def __init__(self, source: Path | str | ExtensionSource, *, worker_channel: bool = True) -> None:
         self.source: ExtensionSource = source if isinstance(source, ExtensionSource) else LocalExtension(Path(source))
         self.patches: list[Callable[[Path], None]] = []
+        # When driven by Browser, auto-attach a py_chauffeur channel into this
+        # extension's service worker (so its code can call/handle commands and
+        # browser.extension(id) works). False loads it without a channel.
+        self.worker_channel = worker_channel
 
     @classmethod
     def from_store(
@@ -287,16 +291,19 @@ class ExtensionSpec:
         refresh: bool = False,
         timeout: float = 30.0,
         cache_dir: Path | None = None,
+        worker_channel: bool = True,
     ) -> ExtensionSpec:
         """Describe an extension pulled off the Chrome Web Store by id.
 
         ``refresh=True`` re-downloads on every build (picking up store updates)
         and falls back to the cached copy when the store is unreachable.
         ``cache_dir`` anchors the pristine download at a fixed location instead
-        of the build's profile-derived cache.
+        of the build's profile-derived cache. ``worker_channel`` controls the
+        service-worker py_chauffeur channel (see the constructor).
         """
         return cls(
-            StoreExtension(extension_id, prodversion, refresh=refresh, timeout=timeout, cache_dir=cache_dir)
+            StoreExtension(extension_id, prodversion, refresh=refresh, timeout=timeout, cache_dir=cache_dir),
+            worker_channel=worker_channel,
         )
 
     @property

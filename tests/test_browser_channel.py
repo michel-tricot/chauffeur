@@ -291,7 +291,7 @@ def test_extension_without_worker_raises(tmp_path):
 
 async def test_on_attached_installs_and_readopts_worker(tmp_path):
     browser = _browser(tmp_path)
-    browser.extension_ids = ["abcdef"]
+    browser._channel_ext_ids = {"abcdef"}
     worker = {"targetInfo": {"type": "service_worker", "url": "chrome-extension://abcdef/sw.js"}}
 
     await browser._on_attached({**worker, "sessionId": "w1"})
@@ -305,14 +305,16 @@ async def test_on_attached_installs_and_readopts_worker(tmp_path):
     assert ("Runtime.addBinding", {"name": _BINDING}, "w2") in browser.cdp.sent
 
 
-async def test_on_attached_ignores_foreign_worker_but_resumes_it(tmp_path):
+async def test_on_attached_skips_and_detaches_unwanted_worker(tmp_path):
+    # A worker not wanting a channel (foreign, or worker_channel=False): resumed
+    # then detached, so no channel and not left attached/pinned.
     browser = _browser(tmp_path)
-    browser.extension_ids = ["abcdef"]
+    browser._channel_ext_ids = {"abcdef"}
     other = {"targetInfo": {"type": "service_worker", "url": "chrome-extension://other/sw.js"}, "sessionId": "w9"}
     await browser._on_attached(other)
     assert "other" not in browser._ext_sessions
-    # Still resumed, so a worker we don't own is never left hanging on the debugger.
     assert ("Runtime.runIfWaitingForDebugger", None, "w9") in browser.cdp.sent
+    assert ("Target.detachFromTarget", {"sessionId": "w9"}, None) in browser.cdp.sent
     assert not any(m == "Runtime.addBinding" and s == "w9" for m, _, s in browser.cdp.sent)
 
 
@@ -324,6 +326,12 @@ def test_extension_id_of():
     assert _extension_id_of("https://example.com/x") == ""
 
 
-def test_attach_extensions_defaults_true(tmp_path):
-    assert LaunchSpec(profile=tmp_path / "p").attach_extensions is True
-    assert LaunchSpec(profile=tmp_path / "p", attach_extensions=False).attach_extensions is False
+def test_worker_channel_defaults_true(tmp_path):
+    from chauffeur import ExtensionSpec
+
+    src = tmp_path / "ext"
+    src.mkdir()
+    (src / "manifest.json").write_text("{}")
+    assert ExtensionSpec(src).worker_channel is True
+    assert ExtensionSpec(src, worker_channel=False).worker_channel is False
+    assert ExtensionSpec.from_store("x", worker_channel=False).worker_channel is False

@@ -33,6 +33,7 @@ from typing import Any, Literal
 from chauffeur import serde
 from chauffeur.cdp import CDPClient, CDPError
 from chauffeur.dispatch import CommandRegistry
+from chauffeur.extension import ExtensionSpec
 from chauffeur.launch import BrowserHandle, launch
 from chauffeur.spec import LaunchSpec
 from chauffeur.ua import save_user_agent
@@ -82,9 +83,11 @@ class Browser:
         self.extension_ids: list[str] = []
         self._session_id: str | None = None
         self._target_id: str | None = None
-        # PROTOTYPE: extension_id -> attached service-worker session id. Filled
-        # by _on_attached as workers spawn; used by extension() for the channel.
+        # extension_id -> attached service-worker session id, filled by
+        # _on_attached as workers spawn; used by extension() for the channel.
         self._ext_sessions: dict[str, str] = {}
+        # extension ids whose spec asked for a worker channel (worker_channel).
+        self._channel_ext_ids: set[str] = set()
         # Set when the primary window/tab is closed. Chrome itself may keep
         # running (macOS keeps the process alive with zero windows), so this,
         # not the connection dropping, is the "user closed the app" signal.
@@ -199,7 +202,11 @@ class Browser:
             cdp = self.cdp = await CDPClient.connect(self.handle.port)
             for event, fn in self._cdp_listeners:
                 cdp.on(event, fn)
-            if self.handle.extensions and self._spec.attach_extensions:
+            # Per-extension: a plain Path defaults to wanting a channel; an
+            # ExtensionSpec carries worker_channel. self._spec.extensions and
+            # handle.extensions are 1:1 in order (see _materialize_extensions).
+            wants_channel = [_wants_channel(entry) for entry in self._spec.extensions]
+            if self.handle.extensions and any(wants_channel):
                 # Auto-attach extension service workers (filtered to workers, so
                 # the primary-page attach below is untouched) and pause each at
                 # start (waitForDebuggerOnStart) so py_chauffeur is installed
@@ -219,9 +226,13 @@ class Browser:
             # Branded Chrome 137+ ignores --load-extension; CDP is the only
             # reliable way to load unpacked extensions.
             self.extension_ids = []
-            for ext_path in self.handle.extensions:
+            self._channel_ext_ids = set()
+            for ext_path, wants in zip(self.handle.extensions, wants_channel):
                 loaded = await cdp.send("Extensions.loadUnpacked", {"path": str(ext_path)})
-                self.extension_ids.append(loaded["id"])
+                ext_id = loaded["id"]
+                self.extension_ids.append(ext_id)
+                if wants:
+                    self._channel_ext_ids.add(ext_id)
             target_id = await self._primary_target(cdp)
             self._target_id = target_id
             cdp.on("Target.targetDestroyed", self._on_target_destroyed)
@@ -278,12 +289,19 @@ class Browser:
         if info.get("type") != "service_worker" or not session_id or cdp is None:
             return
         ext_id = _extension_id_of(info.get("url", ""))
-        if ext_id in self.extension_ids:  # one of ours: give its worker a channel
+        if ext_id in self._channel_ext_ids:  # spec asked for a channel
             await self._install_channel(cdp, session_id, is_page=False, extension_id=ext_id)
             self._ext_sessions[ext_id] = session_id
-        # Always resume; a worker left paused would hang.
+            # Keep the session; a worker left paused would hang.
+            with contextlib.suppress(Exception):
+                await cdp.send("Runtime.runIfWaitingForDebugger", session_id=session_id)
+            return
+        # Not adopting (foreign worker, or worker_channel=False): let it run and
+        # detach so we neither install a channel nor keep it attached/pinned.
         with contextlib.suppress(Exception):
             await cdp.send("Runtime.runIfWaitingForDebugger", session_id=session_id)
+        with contextlib.suppress(Exception):
+            await cdp.send("Target.detachFromTarget", {"sessionId": session_id})
 
     def extension(self, extension_id: str) -> ExtensionChannel:
         """A py_chauffeur channel into a loaded extension's service worker (for
@@ -401,6 +419,12 @@ def _extension_id_of(url: str) -> str:
     """The extension id from a chrome-extension://<id>/... URL, or ''."""
     prefix = "chrome-extension://"
     return url[len(prefix) :].split("/", 1)[0] if url.startswith(prefix) else ""
+
+
+def _wants_channel(entry: ExtensionSpec | Path) -> bool:
+    """Whether a LaunchSpec.extensions entry wants a worker channel. A plain
+    pre-built Path defaults to yes; an ExtensionSpec carries the choice."""
+    return entry.worker_channel if isinstance(entry, ExtensionSpec) else True
 
 
 class ExtensionChannel:

@@ -176,10 +176,8 @@ async with browser:
 ```
 
 Inbound worker calls land in the shared command registry; `caller()` tells a
-handler which extension invoked it (`caller().extension_id`). The channel is the
-whole transport, so there's no separate WebSocket server, token, or reconnect
-logic to build for talking to an extension's worker. Pass
-`LaunchSpec(attach_extensions=False)` to load an extension without a channel.
+handler which extension invoked it (`caller().extension_id`). Pass
+`ExtensionSpec(..., worker_channel=False)` to load an extension without a channel.
 
 ## Replay a captured User-Agent (Cloudflare)
 
