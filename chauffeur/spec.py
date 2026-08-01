@@ -6,6 +6,8 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Literal
 
+from chauffeur.ua import resolve_user_agent
+
 # Trims the process footprint and keeps background pages/service workers
 # responsive when headless.
 MINIMAL_FOOTPRINT_FLAGS = (
@@ -41,6 +43,10 @@ class LaunchSpec:
     # Needed for Extensions.loadUnpacked over CDP; implied by load_extensions.
     extension_debugging: bool = False
     minimal_footprint: bool = True
+    # UA to present. An explicit string is used verbatim (headed or headless).
+    # "auto" replays the captured UA on headless runs only (headed browsers
+    # send their real UA); None leaves the browser default untouched.
+    user_agent: str | Literal["auto"] | None = None
     extra_flags: tuple[str, ...] = ()
 
 
@@ -54,6 +60,9 @@ def build_args(binary: Path, spec: LaunchSpec, port: int, *, screen: tuple[int, 
     ]
     if spec.headless:
         args.append("--headless=new")
+    user_agent = _resolve_ua(binary, spec)
+    if user_agent:
+        args.append(f"--user-agent={user_agent}")
     if spec.extension_debugging or spec.load_extensions:
         args.append("--enable-unsafe-extension-debugging")
     if spec.load_extensions:
@@ -68,6 +77,15 @@ def build_args(binary: Path, spec: LaunchSpec, port: int, *, screen: tuple[int, 
     if spec.url and not spec.app_url:
         args.append(spec.url)
     return args
+
+
+def _resolve_ua(binary: Path, spec: LaunchSpec) -> str | None:
+    if spec.user_agent is None:
+        return None
+    if spec.user_agent == "auto":
+        # Headed sessions send their real UA; only override for headless replay.
+        return resolve_user_agent(binary, spec.profile) if spec.headless else None
+    return spec.user_agent
 
 
 def _window_flags(window: Window, screen: tuple[int, int] | None) -> list[str]:

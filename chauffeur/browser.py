@@ -31,6 +31,7 @@ from chauffeur.cdp import CDPClient
 from chauffeur.dispatch import CommandRegistry
 from chauffeur.launch import BrowserHandle, launch
 from chauffeur.spec import LaunchSpec
+from chauffeur.ua import save_user_agent
 
 _BINDING = "__chauffeur_dispatch"
 _PY_JS = files("chauffeur.js").joinpath("py.js").read_text()
@@ -89,6 +90,17 @@ class Browser:
             timeout=timeout,
         )
         return result.get("result", {}).get("value")
+
+    async def capture_user_agent(self) -> str | None:
+        """Persist this browser's real UA next to the profile for later replay.
+
+        Call after a headed login completes; subsequent headless launches with
+        ``user_agent="auto"`` will replay it (with the Headless marker stripped).
+        """
+        ua = await self.evaluate("navigator.userAgent")
+        if ua:
+            save_user_agent(self._spec.profile, str(ua))
+        return ua
 
     # -- lifecycle -----------------------------------------------------------
 

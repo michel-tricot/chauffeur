@@ -12,6 +12,7 @@ from chauffeur.extension import ExtensionBuild, find_installed_extension
 from chauffeur.launch import BrowserHandle, LaunchError, launch
 from chauffeur.serde import SchemaError, SerdeError
 from chauffeur.spec import LaunchSpec, Window
+from chauffeur.ua import resolve_user_agent, save_user_agent, ua_cache_path
 
 __all__ = [
     "Browser",
@@ -30,4 +31,7 @@ __all__ = [
     "installed_browsers",
     "launch",
     "resolve_browser",
+    "resolve_user_agent",
+    "save_user_agent",
+    "ua_cache_path",
 ]

@@ -107,6 +107,31 @@ spec = LaunchSpec(profile=..., load_extensions=(ext.build(),))
 `build()` is idempotent and re-copies from source, so a bumped installed
 version is picked up on the next run.
 
+## Replay a captured User-Agent (Cloudflare)
+
+Headless Chromium sends a `HeadlessChrome/x.y` UA that Cloudflare rejects, and a
+`cf_clearance` cookie earned in a headed login is bound to the exact UA that
+session sent. Capture the real UA during login, then replay it on headless runs:
+
+```python
+# 1. Headed login — capture the real UA once the user is signed in.
+login = LaunchSpec(profile=profile, headless=False, app_url="https://example.com/login")
+async with Browser(login) as browser:
+    await wait_until_signed_in(browser)
+    await browser.capture_user_agent()      # writes <profile>.ua
+
+# 2. Headless runs — replay it automatically.
+work = LaunchSpec(profile=profile, headless=True, user_agent="auto")
+async with Browser(work) as browser:
+    ...                                      # same profile, same UA, cookie stays valid
+```
+
+`user_agent="auto"` replays the cached UA (Headless marker stripped) on headless
+launches only — headed browsers send their real UA. Pass an explicit string to
+force one verbatim, or leave it `None` (default) to not touch the UA at all. If
+nothing was captured, replay falls back to a per-platform reconstruction, so a
+missing capture never breaks a launch.
+
 ## License
 
 MIT
