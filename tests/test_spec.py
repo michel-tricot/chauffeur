@@ -58,6 +58,14 @@ def test_window_dialog_position_sits_above_center():
     assert "--window-position=800,233" in args  # x centered, y a third down
 
 
+def test_window_top_position_pins_to_top():
+    from chauffeur.spec import build_args as ba
+
+    spec = LaunchSpec(profile=Path("/tmp/p"), window=Window(size=(400, 300), position="top"))
+    args = ba(Path("/bin/chrome"), spec, 9222, screen=(2000, 1000))
+    assert "--window-position=800,0" in args  # x centered, y flush to the top
+
+
 def test_unknown_named_position_rejected():
     with pytest.raises(ValueError, match="unknown window position"):
         Window(size=(400, 300), position="middle")

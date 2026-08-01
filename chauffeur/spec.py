@@ -24,19 +24,20 @@ MINIMAL_FOOTPRINT_FLAGS = (
 )
 
 
-# Named window positions and their vertical share: the top margin is
-# (screen_height - window_height) // share. "center" leaves equal margins;
-# "dialog" leaves a smaller top margin so the window sits above center, roughly
-# where the OS places system dialogs.
-_NAMED_POSITIONS = {"center": 2, "dialog": 3}
+# Named window positions: each maps to the fraction of the free vertical space
+# (screen_height - window_height) left above the window; all are centered
+# horizontally. "top" pins it to the top of the screen, "center" leaves equal
+# margins, "dialog" sits above center (roughly where the OS places system dialogs).
+_NAMED_POSITIONS = {"top": 0.0, "dialog": 1 / 3, "center": 0.5}
 
 
 @dataclass(frozen=True)
 class Window:
     size: tuple[int, int] | None = None
-    # "center" centers on the main display; "dialog" sits above center (see
-    # _NAMED_POSITIONS). Explicit (x, y) coordinates are used verbatim.
-    position: tuple[int, int] | Literal["center", "dialog"] | None = None
+    # "top" pins to the top of the main display, "center" centers, "dialog" sits
+    # above center (see _NAMED_POSITIONS); all center horizontally. Explicit
+    # (x, y) coordinates are used verbatim.
+    position: tuple[int, int] | Literal["top", "center", "dialog"] | None = None
 
     def __post_init__(self) -> None:
         # Catch a bad named position at construction rather than as a KeyError
@@ -137,8 +138,10 @@ def _window_flags(window: Window, screen: tuple[int, int] | None) -> list[str]:
         if screen is None:
             position = None
         else:
-            share = _NAMED_POSITIONS[position]
-            position = (max((screen[0] - size[0]) // 2, 0), max((screen[1] - size[1]) // share, 0))
+            frac = _NAMED_POSITIONS[position]
+            x = max((screen[0] - size[0]) // 2, 0)
+            y = max(int((screen[1] - size[1]) * frac), 0)
+            position = (x, y)
     if isinstance(position, tuple):
         flags.append(f"--window-position={position[0]},{position[1]}")
     return flags

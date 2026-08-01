@@ -11,7 +11,7 @@ spec = LaunchSpec(
     browser="auto",                     # or "chrome" / a binary Path
     headless=True,
     devtools_port=0,                    # 0 = pick a free port
-    window=Window(size=(390, 320), position="center"),  # or "dialog": above center
+    window=Window(size=(390, 320), position="center"),  # or "top" / "dialog" (above center)
     minimal_footprint=True,             # trim the process down
     show_browser_ui=False,              # present as an app/dialog, not a browser
 )
