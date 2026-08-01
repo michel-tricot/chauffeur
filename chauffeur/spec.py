@@ -60,11 +60,10 @@ class LaunchSpec:
     # Enables Extensions.loadUnpacked; implied by extensions.
     extension_debugging: bool = False
     minimal_footprint: bool = True
-    # Whether a headed window shows Chrome's usual chrome. Default False starts
-    # it clean — bookmarks bar hidden, opening about:blank instead of the New
-    # Tab Page (which would force the bookmarks bar back on). True keeps the
-    # normal UI. Either way a tabbed window still has its toolbar; use
-    # app_url/app_page for a toolbar-less window. Ignored when headless.
+    # Headed windows start clean by default (no bookmarks bar or startup
+    # clutter), so a window can be presented as an app or dialog rather than a
+    # browser; set True to show Chrome's normal browsing UI. Ignored when
+    # headless. For a fully chromeless window, use app_url/app_page.
     show_browser_ui: bool = False
     # UA to present. An explicit string is used verbatim (headed or headless).
     # "auto" replays the captured UA on headless runs only (headed browsers
