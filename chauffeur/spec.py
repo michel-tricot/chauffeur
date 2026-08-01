@@ -45,8 +45,8 @@ class LaunchSpec:
     # css/js/image siblings load alongside it over file://. A filesystem Path
     # is used in place; an importlib.resources traversable (data packaged in
     # a wheel/zip) is extracted, siblings included, for the browser's
-    # lifetime. With Browser, navigation happens after the py channel is
-    # installed, so the page's scripts can use py.* immediately.
+    # lifetime. With Browser, navigation happens after the py_chauffeur channel is
+    # installed, so the page's scripts can use py_chauffeur.* immediately.
     page: Path | Traversable | None = None  # opens as a tab; conflicts with url
     app_page: Path | Traversable | None = None  # chromeless --app window; wins over page
     window: Window | None = None

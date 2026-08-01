@@ -47,7 +47,7 @@ def test_call_forwards(tmp_path):
         sb.call("do_thing", {"x": 1})
         method, params = sb._async.cdp.sent[-1]
         assert method == "Runtime.evaluate"
-        assert "py._handle" in params["expression"]
+        assert "py_chauffeur._handle" in params["expression"]
     finally:
         sb.close()
 

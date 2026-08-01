@@ -7,7 +7,7 @@ and it proves it ran by calling the Python `greet` command over the channel.
 
 chauffeur builds the spec into <profile>.extensions/<name> and loads it over
 CDP (branded Chrome 137+ ignores --load-extension). We then point the primary
-page at the extension's own chrome-extension:// page, where `py` is available.
+page at the extension's own chrome-extension:// page, where `py_chauffeur` is available.
 
     uv run examples/09_headless_extension_build/main.py
 """
@@ -27,7 +27,7 @@ HELLO_HTML = '<!doctype html><meta charset="utf-8"><title>hello</title><h1 id="m
 # prove it ran by calling back into Python.
 HELLO_JS = """const name = globalThis.__chauffeur_config?.name ?? "stranger";
 (async () => {
-  const reply = await py.call("greet", { name });
+  const reply = await py_chauffeur.call("greet", { name });
   document.querySelector("#msg").textContent = reply;
 })();
 """

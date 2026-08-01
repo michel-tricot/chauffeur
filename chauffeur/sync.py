@@ -37,7 +37,7 @@ class SyncBrowser:
     # -- decorator API (forwarded; handlers run on the loop thread) -----------
 
     def command(self, name: str | Callable | None = None, *, strict: bool = False):
-        """Register a handler for a browser-initiated command (py.call/py.notify)."""
+        """Register a handler for a browser-initiated command (py_chauffeur.call/py_chauffeur.notify)."""
         return self._async.command(name, strict=strict)
 
     def on(self, event: str) -> Callable[[Callable], Callable]:

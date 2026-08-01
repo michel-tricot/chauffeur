@@ -75,7 +75,7 @@ header {
 """
 
 JS = """const $ = (sel) => document.querySelector(sel);
-py.on("tick", async ({ clock, load, beats }) => {
+py_chauffeur.on("tick", async ({ clock, load, beats }) => {
   $("#clock").textContent = clock;
   $("#load").textContent = load.toFixed(2);
   $("#beats").textContent = beats;
@@ -84,7 +84,7 @@ py.on("tick", async ({ clock, load, beats }) => {
   void dot.offsetWidth;  // restart the animation
   dot.classList.add("pulse");
 });
-py.notify("ui_ready", {});
+py_chauffeur.notify("ui_ready", {});
 """
 
 

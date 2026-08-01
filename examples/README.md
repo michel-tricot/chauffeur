@@ -16,8 +16,8 @@ more advanced extension use cases last.
 | --- | --- |
 | `00_headless_list_browsers` | Which Chromium-family browsers chauffeur can drive |
 | `01_headless_launch_and_evaluate` | Launch headless, evaluate JS, clean shutdown |
-| `02_headless_bidirectional` | `py.call` into Python commands, `browser.call` into JS handlers, dataclass validation, error replies |
-| `03_headless_cdp_events` | Raw CDP event listeners; `py` surviving navigation |
+| `02_headless_bidirectional` | `py_chauffeur.call` into Python commands, `browser.call` into JS handlers, dataclass validation, error replies |
+| `03_headless_cdp_events` | Raw CDP event listeners; `py_chauffeur` surviving navigation |
 | `04_headless_ua_capture_replay` | Capture a User-Agent and replay it with the Headless marker stripped |
 | `05_headless_sync_browser` | The synchronous `SyncBrowser` API: same capabilities, no async/await |
 | `06_ui_app_window` | A centered chromeless app window; its button counts clicks and notifies Python |

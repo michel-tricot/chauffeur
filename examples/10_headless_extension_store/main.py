@@ -24,7 +24,7 @@ HELLO_HTML = '<!doctype html><meta charset="utf-8"><title>hello</title><h1 id="m
 
 HELLO_JS = """const name = globalThis.__chauffeur_config?.name ?? "stranger";
 (async () => {
-  const reply = await py.call("greet", { name });
+  const reply = await py_chauffeur.call("greet", { name });
   document.querySelector("#msg").textContent = reply;
 })();
 """

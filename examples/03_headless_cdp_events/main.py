@@ -1,6 +1,6 @@
 """Subscribe to raw CDP events while driving navigation.
 
-@browser.on(...) delivers any DevTools event as a plain dict. The py channel
+@browser.on(...) delivers any DevTools event as a plain dict. The py_chauffeur channel
 is re-injected on every new document, so it survives navigation.
 
     uv run examples/03_headless_cdp_events/main.py
@@ -40,7 +40,7 @@ async def main() -> None:
                 await browser.navigate(page.as_uri())
                 await loaded.wait()
                 print("  title:", await browser.evaluate("document.title"))
-                print("  py is still a", await browser.evaluate("typeof py"))
+                print("  py_chauffeur is still a", await browser.evaluate("typeof py_chauffeur"))
 
 
 if __name__ == "__main__":

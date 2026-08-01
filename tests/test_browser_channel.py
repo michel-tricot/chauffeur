@@ -26,8 +26,8 @@ def _browser(tmp_path):
 
 
 def _delivered(params):
-    """The reply envelope inside a py._deliver(...) evaluate expression."""
-    return json.loads(params["expression"].removeprefix("py._deliver(").removesuffix(")"))
+    """The reply envelope inside a py_chauffeur._deliver(...) evaluate expression."""
+    return json.loads(params["expression"].removeprefix("py_chauffeur._deliver(").removesuffix(")"))
 
 
 async def test_binding_reply_targets_calling_context(tmp_path):

@@ -47,7 +47,7 @@ PAGE = """<!doctype html>
   let n = 0;
   document.querySelector("#btn").addEventListener("click", () => {
     document.querySelector("#count").textContent = ++n;
-    py.notify("clicked", { count: n });
+    py_chauffeur.notify("clicked", { count: n });
   });
 </script>
 </body>

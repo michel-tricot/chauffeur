@@ -7,8 +7,8 @@ extracted automatically for the browser's lifetime:
 
     LaunchSpec(profile=..., app_page=files("myapp") / "ui" / "app.html")
 
-With Browser, the page is navigated only after the py channel is installed,
-so its scripts can use py.on / py.notify from their first line, no polling.
+With Browser, the page is navigated only after the py_chauffeur channel is installed,
+so its scripts can use py_chauffeur.on / py_chauffeur.notify from their first line, no polling.
 
 Headed: needs a desktop session. The UI starts as a native modal <dialog>
 (shown via showModal() at load); closing it (the button or the Esc key) shuts
@@ -68,14 +68,14 @@ button:focus-visible { outline: 2px solid rgb(129 140 248 / 0.7); outline-offset
 """
 
 JS = """const dlg = document.querySelector("#dlg");
-py.on("set_status", async ({ text }) => {
+py_chauffeur.on("set_status", async ({ text }) => {
   document.querySelector("#status").textContent = text;
   return "status set to: " + text;
 });
 // Fires for the form button and for Esc alike.
-dlg.addEventListener("close", () => py.notify("close_clicked", {}));
+dlg.addEventListener("close", () => py_chauffeur.notify("close_clicked", {}));
 dlg.showModal();
-py.notify("ui_ready", { title: document.title });
+py_chauffeur.notify("ui_ready", { title: document.title });
 """
 
 

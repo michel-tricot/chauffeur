@@ -1,10 +1,10 @@
 // Browser-side half of the chauffeur channel. Injected into every document
 // (and evaluable in extension service workers). Symmetric to the Python side:
-//   await py.call("save_password", {...})  -> runs the @browser.command handler
-//   py.notify("telemetry", {...})          -> fire-and-forget
-//   py.on("refresh_ui", async p => {...})  -> handles browser.call() from Python
+//   await py_chauffeur.call("save_password", {...})  -> runs the @browser.command handler
+//   py_chauffeur.notify("telemetry", {...})          -> fire-and-forget
+//   py_chauffeur.on("refresh_ui", async p => {...})  -> handles browser.call() from Python
 (() => {
-  if (globalThis.py) return;
+  if (globalThis.py_chauffeur) return;
   const pending = new Map();
   const handlers = new Map();
   let seq = 0;
@@ -17,7 +17,7 @@
     binding(JSON.stringify(envelope));
   }
 
-  globalThis.py = {
+  globalThis.py_chauffeur = {
     call(command, params) {
       const id = "js" + ++seq;
       return new Promise((resolve, reject) => {
@@ -39,7 +39,7 @@
       handlers.set(command, fn);
     },
 
-    // Called by Python via Runtime.evaluate to resolve a pending py.call().
+    // Called by Python via Runtime.evaluate to resolve a pending py_chauffeur.call().
     _deliver(reply) {
       const entry = pending.get(reply.id);
       if (!entry) return;

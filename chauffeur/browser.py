@@ -15,7 +15,7 @@ the decorator API.
 The browser->python channel rides on Runtime.addBinding: page/worker JS calls
 window.__chauffeur_dispatch(json), which surfaces as a Runtime.bindingCalled
 event; we route it through the command registry and send the reply back with
-Runtime.evaluate(py._deliver(...)). browser.call() runs the mirror direction.
+Runtime.evaluate(py_chauffeur._deliver(...)). browser.call() runs the mirror direction.
 """
 
 from __future__ import annotations
@@ -56,7 +56,7 @@ class Browser:
     # -- decorator API -------------------------------------------------------
 
     def command(self, name: str | Callable | None = None, *, strict: bool = False):
-        """Register a handler for a browser-initiated command (py.call/py.notify)."""
+        """Register a handler for a browser-initiated command (py_chauffeur.call/py_chauffeur.notify)."""
         return self._registry.command(name, strict=strict)
 
     def on(self, event: str) -> Callable[[Callable], Callable]:
@@ -73,9 +73,9 @@ class Browser:
     # -- python -> browser ---------------------------------------------------
 
     async def call(self, command: str, params: Any = None, *, timeout: float = 30.0) -> Any:
-        """Invoke a JS handler registered via py.on(command, ...)."""
+        """Invoke a JS handler registered via py_chauffeur.on(command, ...)."""
         envelope = json.dumps({"command": command, "params": serde.to_wire(params)})
-        return await self.evaluate(f"py._handle({envelope})", timeout=timeout)
+        return await self.evaluate(f"py_chauffeur._handle({envelope})", timeout=timeout)
 
     async def evaluate(self, expression: str, *, await_promise: bool = True, timeout: float = 30.0) -> Any:
         """Run arbitrary JS in the primary session and return its value."""
@@ -112,7 +112,7 @@ class Browser:
 
     async def start(self) -> Browser:
         # defer_page: a page/app_page starts on about:blank and is navigated
-        # below, after the channel exists, its scripts can use py right away.
+        # below, after the channel exists, its scripts can use py_chauffeur right away.
         self.handle = await asyncio.to_thread(launch, self._spec, defer_page=True)
         try:
             cdp = self.cdp = await CDPClient.connect(self.handle.port)
@@ -174,8 +174,8 @@ class Browser:
         if cdp is None:  # shut down while the handler ran
             return
         # Deliver into the context that called the binding, iframes and
-        # non-default contexts have their own py object with the pending promise.
-        params: dict[str, Any] = {"expression": f"py._deliver({json.dumps(reply)})"}
+        # non-default contexts have their own py_chauffeur object with the pending promise.
+        params: dict[str, Any] = {"expression": f"py_chauffeur._deliver({json.dumps(reply)})"}
         if context_id is not None:
             params["contextId"] = context_id
         with contextlib.suppress(Exception):

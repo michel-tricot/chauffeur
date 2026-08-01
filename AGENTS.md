@@ -31,7 +31,7 @@ runners.
 - `browser.py` is the facade: launches via `launch.py`, connects `cdp.py`,
   attaches to the primary target, and installs the channel
   (`Runtime.addBinding` + `js/py.js`). Command replies are delivered into the
-  execution context that made the call, so iframes have their own `py` object.
+  execution context that made the call, so iframes have their own `py_chauffeur` object.
 - `dispatch.py` + `serde.py`: command registry and dataclass/JSON
   validation. Wire types are deliberately limited to what survives a JSON
   round trip; schema mistakes fail at decoration time, not on first message.
@@ -39,7 +39,7 @@ runners.
   (`_prepare_pages`): packaged (zip/wheel) resources are extracted, siblings
   included, for the browser's lifetime via an `ExitStack` on
   `BrowserHandle`. With `Browser`, navigation is deferred until the channel
-  is installed so page scripts can use `py.*` from their first line.
+  is installed so page scripts can use `py_chauffeur.*` from their first line.
 - `Browser.serve()` unblocks on: primary window/tab closed, CDP connection
   dropped, or an optional `until` event.
 - `SyncBrowser` (`chauffeur/sync.py`) is a synchronous facade: it runs the
@@ -70,7 +70,7 @@ runners.
   connection dropping is not a reliable close signal.
 - `file://` pages: relative css/js/images load fine; `fetch()` and ES modules
   are CORS-blocked (opaque origin) unless the remote sends permissive CORS.
-  Route data through `py.call` instead. Never add `--disable-web-security`.
+  Route data through `py_chauffeur.call` instead. Never add `--disable-web-security`.
 - The DevTools port is unauthenticated and `py.js` is injected into every
   document: treat incoming commands as untrusted input.
 - `LaunchSpec.profile` is required by design; never give it a default, so a

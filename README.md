@@ -24,7 +24,7 @@ extension harnesses, or keeping your own logged-in session alive.
 - 🚀 **Launch your way.** Headless or headed, chromeless app windows, any
   installed Chromium (Chrome, Chromium, Brave, Edge). A dedicated profile with
   guardrails against clobbering your real one.
-- 🔌 **Bidirectional commands.** `py.call(...)` into Python and
+- 🔌 **Bidirectional commands.** `py_chauffeur.call(...)` into Python and
   `browser.call(...)` into JS over one JSON envelope, with dataclass
   validation and error replies that never hang.
 - 🧵 **Async or sync.** The async `Browser`, or a drop-in `SyncBrowser` with no
@@ -59,12 +59,12 @@ from chauffeur import Browser, LaunchSpec
 async def main():
     browser = Browser(LaunchSpec(profile=Path("~/.myapp/profile"), headless=True))
 
-    @browser.command()                       # the page can now call py.call("greet", ...)
+    @browser.command()                       # the page can now call py_chauffeur.call("greet", ...)
     def greet(params: dict) -> str:
         return f"Hello, {params['name']}!"
 
     async with browser:
-        reply = await browser.evaluate("py.call('greet', {name: 'world'})")
+        reply = await browser.evaluate("py_chauffeur.call('greet', {name: 'world'})")
         print(reply)                         # -> Hello, world!
 
 
@@ -100,7 +100,7 @@ clutter, so a window reads as an app or dialog rather than a browser. Pass
 
 ## Talk to the browser both ways
 
-The browser calls into Python with `py.call(...)`; Python calls into the
+The browser calls into Python with `py_chauffeur.call(...)`; Python calls into the
 browser with `browser.call(...)`. Same JSON envelope in both directions.
 
 ```python
@@ -147,19 +147,19 @@ loses its `a`-prefix (`browser.evaluate(...)`, `browser.call(...)`,
 `browser.serve()`), and `@command`/`@on` handlers still work. They run on the
 loop thread, so keep them quick.
 
-Browser side (injected `py` global is available in every document):
+Browser side (injected `py_chauffeur` global is available in every document):
 
 ```javascript
-const res = await py.call("save_password", {url, username, secret});
-py.notify("telemetry", {event: "unlock"});   // fire-and-forget, no reply
-py.on("refresh_ui", async ({section}) => { /* handles browser.call() */ });
+const res = await py_chauffeur.call("save_password", {url, username, secret});
+py_chauffeur.notify("telemetry", {event: "unlock"});   // fire-and-forget, no reply
+py_chauffeur.on("refresh_ui", async ({section}) => { /* handles browser.call() */ });
 ```
 
 Annotate a handler's `params` with a dataclass and you get a validated
 dataclass; annotate it with `dict` (or leave it off) and you get the raw
 payload. Dataclass return values are serialized back automatically. Unknown
 commands, bad params, and handler exceptions always produce an error reply so a
-`await py.call(...)` never hangs.
+`await py_chauffeur.call(...)` never hangs.
 
 ## Show a local page, no server
 
@@ -180,8 +180,8 @@ from importlib.resources import files
 spec = LaunchSpec(profile=..., app_page=files("myapp") / "ui" / "app.html")
 ```
 
-With `Browser`, the page is navigated only after the py channel is installed,
-so its scripts can call `py.on(...)` / `py.notify(...)` from their first line.
+With `Browser`, the page is navigated only after the py_chauffeur channel is installed,
+so its scripts can call `py_chauffeur.on(...)` / `py_chauffeur.notify(...)` from their first line.
 
 ## Patch and load an extension
 

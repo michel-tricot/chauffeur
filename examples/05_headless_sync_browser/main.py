@@ -27,10 +27,10 @@ def main() -> None:
             print("2 + 2 =", browser.evaluate("2 + 2"))
 
             # Browser -> Python: the page calls the registered command.
-            print("page got:", browser.evaluate("py.call('add', {a: 20, b: 22})"))
+            print("page got:", browser.evaluate("py_chauffeur.call('add', {a: 20, b: 22})"))
 
-            # Python -> browser: call a py.on handler the page registered.
-            browser.evaluate("py.on('shout', async ({text}) => text.toUpperCase())")
+            # Python -> browser: call a py_chauffeur.on handler the page registered.
+            browser.evaluate("py_chauffeur.on('shout', async ({text}) => text.toUpperCase())")
             print("browser said:", browser.call("shout", {"text": "hi from sync python"}))
 
 

@@ -1,7 +1,7 @@
 """Talk to the browser in both directions with the same JSON envelope.
 
 Python registers commands with @browser.command; the page calls them with
-py.call(...). The page registers handlers with py.on(...); Python calls them
+py_chauffeur.call(...). The page registers handlers with py_chauffeur.on(...); Python calls them
 with browser.call(...). Dataclass annotations get validated params and
 serialized results; bad input comes back as a rejection, never a hang.
 
@@ -44,19 +44,19 @@ async def main() -> None:
             return {"saved": len(vault)}
 
         async with browser:
-            # Browser -> Python: the page calls py.call and awaits the reply.
+            # Browser -> Python: the page calls py_chauffeur.call and awaits the reply.
             saved = await browser.evaluate(
-                "py.call('save_bookmark', {url: 'https://example.com', title: 'Example', tags: ['demo']})"
+                "py_chauffeur.call('save_bookmark', {url: 'https://example.com', title: 'Example', tags: ['demo']})"
             )
             print("page got:", saved)
-            print("stats:", await browser.evaluate("py.call('stats')"))
+            print("stats:", await browser.evaluate("py_chauffeur.call('stats')"))
 
             # Validation errors come back as rejections with a type, not hangs.
-            err = await browser.evaluate("py.call('save_bookmark', {url: 42}).catch(e => `${e.type}: ${e.message}`)")
+            err = await browser.evaluate("py_chauffeur.call('save_bookmark', {url: 42}).catch(e => `${e.type}: ${e.message}`)")
             print("bad params ->", err)
 
             # Python -> browser: the page registers a handler, Python calls it.
-            await browser.evaluate("py.on('shout', async ({text}) => text.toUpperCase())")
+            await browser.evaluate("py_chauffeur.on('shout', async ({text}) => text.toUpperCase())")
             print("browser said:", await browser.call("shout", {"text": "hello from python"}))
 
 
