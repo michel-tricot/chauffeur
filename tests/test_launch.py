@@ -3,7 +3,7 @@ import logging
 import sys
 
 from chauffeur.browsers import BrowserInfo
-from chauffeur.launch import _apply_ui_prefs, _warn_if_real_profile
+from chauffeur.launch import LaunchError, _apply_ui_prefs, _warn_if_real_profile
 from chauffeur.spec import LaunchSpec
 
 # The package re-exports the launch *function*, which shadows the
@@ -67,3 +67,10 @@ def test_headless_leaves_profile_untouched(tmp_path):
     profile = tmp_path / "prof"
     _apply_ui_prefs(LaunchSpec(profile=profile, headless=True))
     assert not (profile / "Default").exists()
+
+
+def test_launch_error_carries_returncode():
+    # The exited-immediately failure (usually a locked profile) is
+    # distinguishable from a slow DevTools port without message sniffing.
+    assert LaunchError("exited with code 21", returncode=21).returncode == 21
+    assert LaunchError("port never came up").returncode is None

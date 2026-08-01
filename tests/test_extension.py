@@ -275,6 +275,18 @@ def test_store_source_refresh_raises_without_cache(tmp_path, monkeypatch):
         StoreExtension("abcdefghijklmnopabcdefghijklmnop", refresh=True).resolve(tmp_path)
 
 
+def test_store_source_pinned_cache_dir(tmp_path, monkeypatch):
+    _fake_download(monkeypatch, _crx3(_zip_bytes({"manifest.json": "{}"})))
+    pinned = tmp_path / "app-data"
+    source = StoreExtension("abcdefghijklmnopabcdefghijklmnop", cache_dir=pinned)
+
+    resolved = source.resolve(tmp_path / "ignored-build-cache")
+
+    assert resolved == pinned / "abcdefghijklmnopabcdefghijklmnop.src"
+    assert (resolved / "manifest.json").is_file()
+    assert not (tmp_path / "ignored-build-cache").exists()
+
+
 def test_from_store_builds_with_patches(tmp_path, monkeypatch):
     crx = _crx3(_zip_bytes({"manifest.json": '{"name": "Store Ext"}', "background.js": "boot();"}))
     _fake_download(monkeypatch, crx)

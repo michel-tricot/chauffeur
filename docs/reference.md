@@ -37,10 +37,18 @@ the source.
 
 ::: chauffeur.ua_cache_path
 
+## Profiles
+
+::: chauffeur.wipe_profile
+::: chauffeur.profiles.close_running_browser
+::: chauffeur.profiles.running_devtools_port
+
 ## Errors
 
+::: chauffeur.BrowserNotFoundError
 ::: chauffeur.CDPError
 ::: chauffeur.ExtensionNotFoundError
+::: chauffeur.JSError
 ::: chauffeur.LaunchError
 ::: chauffeur.SchemaError
 ::: chauffeur.SerdeError

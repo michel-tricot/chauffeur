@@ -23,12 +23,13 @@ from __future__ import annotations
 import asyncio
 import contextlib
 import json
+import subprocess
 from collections.abc import Callable
 from importlib.resources import files
-from typing import Any
+from typing import Any, Literal
 
 from chauffeur import serde
-from chauffeur.cdp import CDPClient
+from chauffeur.cdp import CDPClient, CDPError
 from chauffeur.dispatch import CommandRegistry
 from chauffeur.launch import BrowserHandle, launch
 from chauffeur.spec import LaunchSpec
@@ -36,6 +37,16 @@ from chauffeur.ua import save_user_agent
 
 _BINDING = "__chauffeur_dispatch"
 _PY_JS = files("chauffeur.js").joinpath("py.js").read_text()
+
+ServeReason = Literal["until", "page-closed", "connection-lost"]
+
+
+class JSError(RuntimeError):
+    """JavaScript evaluated in the page threw.
+
+    Distinct from CDPError (the protocol/transport failed) so callers can tell
+    "the page's code broke" from "the browser is gone".
+    """
 
 
 class Browser:
@@ -88,14 +99,44 @@ class Browser:
         )
         details = result.get("exceptionDetails")
         if details:
-            description = (details.get("exception") or {}).get("description") or details.get("text", "evaluation failed")
-            raise RuntimeError(description)
+            description = (details.get("exception") or {}).get("description") or details.get(
+                "text", "evaluation failed"
+            )
+            raise JSError(description)
         return (result.get("result") or {}).get("value")
 
-    async def navigate(self, url: str) -> None:
-        """Navigate the primary target."""
+    async def navigate(self, url: str, *, wait: Literal["load"] | None = None, timeout: float = 30.0) -> None:
+        """Navigate the primary target; raises CDPError when Chrome refuses the
+        navigation (bad scheme, net error).
+
+        wait="load" blocks until the destination frame finishes loading
+        (Page.frameStoppedLoading), so an evaluate() right after sees the
+        loaded document instead of racing the navigation.
+        """
         assert self.cdp and self._session_id, "browser not started"
-        await self.cdp.send("Page.navigate", {"url": url}, session_id=self._session_id)
+        if wait is None:
+            _check_navigation(url, await self.cdp.send("Page.navigate", {"url": url}, session_id=self._session_id))
+            return
+        loaded = asyncio.Event()
+        stopped_frames: set[str | None] = set()
+        frame_id: str | None = None
+
+        def on_stopped(params: dict) -> None:
+            # Buffer every frame until the navigate reply names ours: the
+            # reply and the stop event race on the same connection.
+            stopped_frames.add(params.get("frameId"))
+            if frame_id is not None and params.get("frameId") == frame_id:
+                loaded.set()
+
+        self.cdp.on("Page.frameStoppedLoading", on_stopped, session_id=self._session_id)
+        try:
+            result = await self.cdp.send("Page.navigate", {"url": url}, session_id=self._session_id, timeout=timeout)
+            _check_navigation(url, result)
+            frame_id = result.get("frameId")
+            if frame_id is not None and frame_id not in stopped_frames:
+                await asyncio.wait_for(loaded.wait(), timeout)
+        finally:
+            self.cdp.off("Page.frameStoppedLoading", on_stopped, session_id=self._session_id)
 
     async def capture_user_agent(self) -> str | None:
         """Persist this browser's real UA next to the profile for later replay.
@@ -111,8 +152,10 @@ class Browser:
     # -- lifecycle -----------------------------------------------------------
 
     async def start(self) -> Browser:
-        # defer_page: a page/app_page starts on about:blank and is navigated
-        # below, after the channel exists, its scripts can use py_chauffeur right away.
+        # defer_page: the destination (spec.url) starts on a unique blank page
+        # and is navigated below, after the channel exists — page scripts can use
+        # py_chauffeur right away, and the blank page identifies the launch tab
+        # among session-restored ones.
         self.handle = await asyncio.to_thread(launch, self._spec, defer_page=True)
         try:
             cdp = self.cdp = await CDPClient.connect(self.handle.port)
@@ -138,10 +181,24 @@ class Browser:
         return self
 
     async def _primary_target(self, cdp: CDPClient) -> str:
-        for target in await cdp.targets():
-            if target.get("type") == "page":
-                return target["targetId"]
-        return await cdp.create_target(self._spec.url or "about:blank")
+        # Prefer the launch tab, identified by the unique blank page it opened
+        # on (handle.primary_url): with session restore in the profile, "first
+        # page target" may be an unrelated restored tab. The launch tab can lag
+        # the DevTools port coming up, so give it a moment to appear.
+        marker = self.handle.primary_url if self.handle else None
+        deadline = asyncio.get_running_loop().time() + 2.0
+        while True:
+            pages = [t for t in await cdp.targets() if t.get("type") == "page"]
+            if marker is not None:
+                for target in pages:
+                    if target.get("url") == marker:
+                        return target["targetId"]
+                if asyncio.get_running_loop().time() < deadline:
+                    await asyncio.sleep(0.05)
+                    continue
+            if pages:
+                return pages[0]["targetId"]
+            return await cdp.create_target("about:blank")
 
     async def _install_channel(self, cdp: CDPClient, session_id: str) -> None:
         # The primary target is always a page, so the Page domain is available.
@@ -150,9 +207,7 @@ class Browser:
         await cdp.send("Runtime.addBinding", {"name": _BINDING}, session_id=session_id)
         await cdp.send("Page.enable", session_id=session_id)
         # Install py.js for future navigations, and in the current document.
-        await cdp.send(
-            "Page.addScriptToEvaluateOnNewDocument", {"source": _PY_JS}, session_id=session_id
-        )
+        await cdp.send("Page.addScriptToEvaluateOnNewDocument", {"source": _PY_JS}, session_id=session_id)
         await cdp.send("Runtime.evaluate", {"expression": _PY_JS}, session_id=session_id)
 
     async def _on_binding(self, params: dict) -> None:
@@ -185,9 +240,10 @@ class Browser:
         if params.get("targetId") == self._target_id:
             self._page_closed.set()
 
-    async def serve(self, *, until: asyncio.Event | None = None) -> None:
+    async def serve(self, *, until: asyncio.Event | None = None) -> ServeReason:
         """Block until the primary window/tab is closed, the browser
-        connection drops, or `until` is set.
+        connection drops, or `until` is set; returns which of those happened
+        ("page-closed", "connection-lost", or "until").
 
         Watching the window (not just the connection) matters: on macOS the
         browser process outlives its last window, so the connection alone
@@ -206,19 +262,44 @@ class Browser:
         finally:
             for waiter in waiters:
                 waiter.cancel()
+        if until is not None and until.is_set():
+            return "until"
+        if self._page_closed.is_set():
+            return "page-closed"
+        return "connection-lost"
 
     async def aclose(self) -> None:
         try:
             if self.cdp is not None:
+                # Ask the browser to exit orderly first: Browser.close flushes
+                # profile state (the cookie DB above all) that a bare SIGTERM
+                # can lose when it lands mid-write.
+                with contextlib.suppress(Exception):
+                    await self.cdp.send("Browser.close", timeout=5)
+                await self._wait_for_exit(5)
                 await self.cdp.close()
         finally:
             # Terminate even when closing the CDP connection fails; otherwise the
-            # browser process would outlive its owner.
+            # browser process would outlive its owner. A no-op when Browser.close
+            # already brought the process down.
             if self.handle is not None:
                 await asyncio.to_thread(self.handle.terminate)
+
+    async def _wait_for_exit(self, timeout: float) -> None:
+        handle = self.handle
+        if handle is None:
+            return
+        with contextlib.suppress(subprocess.TimeoutExpired):
+            await asyncio.to_thread(handle.proc.wait, timeout)
 
     async def __aenter__(self) -> Browser:
         return await self.start()
 
     async def __aexit__(self, *exc: object) -> None:
         await self.aclose()
+
+
+def _check_navigation(url: str, result: dict) -> None:
+    error = result.get("errorText")
+    if error:
+        raise CDPError(f"navigation to {url} failed: {error}")

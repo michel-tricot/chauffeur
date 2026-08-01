@@ -24,8 +24,8 @@ opens a debugging port on it and rewrites its Preferences.
 
 Headed windows start clean by default, with no bookmarks bar or startup
 clutter, so a window reads as an app or dialog rather than a browser. Pass
-`show_browser_ui=True` for Chrome's normal browsing UI, or use `app_url` /
-`app_page` for a fully chromeless window.
+`show_browser_ui=True` for Chrome's normal browsing UI, or use `app=True` for a
+fully chromeless window.
 
 ## Talk to the browser both ways
 
@@ -94,11 +94,11 @@ commands, bad params, and handler exceptions always produce an error reply, so
 
 ## Show a local page, no server
 
-Point the browser at an HTML file; its relative css/js/images load over
-`file://`. `app_page` opens it as a chromeless app window, `page` as a tab:
+Point `url` at an HTML file (a `Path`); its relative css/js/images load over
+`file://`. Add `app=True` for a chromeless app window, or omit it for a tab:
 
 ```python
-spec = LaunchSpec(profile=..., headless=False, app_page=Path("ui/app.html"))
+spec = LaunchSpec(profile=..., headless=False, url=Path("ui/app.html"), app=True)
 ```
 
 Packaged UIs work the same way: pass an `importlib.resources` traversable and
@@ -108,7 +108,7 @@ a zipped install:
 ```python
 from importlib.resources import files
 
-spec = LaunchSpec(profile=..., app_page=files("myapp") / "ui" / "app.html")
+spec = LaunchSpec(profile=..., url=files("myapp") / "ui" / "app.html", app=True)
 ```
 
 With `Browser`, the page is navigated only after the `py_chauffeur` channel is
@@ -136,7 +136,8 @@ from chauffeur import ExtensionSpec, find_installed_extension
 ext = ExtensionSpec(find_installed_extension("pejdijmoenmkgeppbflobdenhhabjlaj"))
 
 # or pull it from the Web Store by id (downloaded once, cached). refresh=True
-# re-downloads on each launch and keeps the cache when the store is unreachable
+# re-downloads on each launch and keeps the cache when the store is unreachable;
+# cache_dir= pins the pristine download to a fixed location
 ext = ExtensionSpec.from_store("pejdijmoenmkgeppbflobdenhhabjlaj", refresh=True)
 
 ext = (
@@ -165,7 +166,7 @@ session sent. Capture the real UA during login, then replay it on headless runs:
 
 ```python
 # 1. Headed login: capture the real UA once the user is signed in.
-login = LaunchSpec(profile=profile, headless=False, app_url="https://example.com/login")
+login = LaunchSpec(profile=profile, headless=False, url="https://example.com/login")
 async with Browser(login) as browser:
     await wait_until_signed_in(browser)
     await browser.capture_user_agent()      # writes <profile>.ua

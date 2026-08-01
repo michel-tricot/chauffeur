@@ -113,7 +113,7 @@ async def main() -> None:
         spec = LaunchSpec(
             profile=Path(tmp) / "profile",
             headless=False,
-            app_page=ui / "app.html",
+            url=ui / "app.html", app=True,
             window=Window(size=(420, 340), position="center"),
         )
         browser = Browser(spec)

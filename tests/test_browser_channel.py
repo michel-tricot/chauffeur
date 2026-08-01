@@ -1,18 +1,39 @@
 import asyncio
 import json
+from types import SimpleNamespace
 
-from chauffeur.browser import _BINDING, Browser
+import pytest
+
+from chauffeur.browser import _BINDING, Browser, JSError
+from chauffeur.cdp import CDPError
 from chauffeur.spec import LaunchSpec
 
 
 class StubCDP:
     def __init__(self):
         self.sent = []
+        self.replies = {}  # method -> reply dict
+        self.listeners = {}
         self._closed = asyncio.Event()
 
     async def send(self, method, params=None, *, session_id=None, timeout=30.0):
         self.sent.append((method, params, session_id))
-        return {}
+        return dict(self.replies.get(method, {}))
+
+    def on(self, event, handler, *, session_id=None):
+        self.listeners.setdefault((event, session_id), []).append(handler)
+
+    def off(self, event, handler, *, session_id=None):
+        handlers = self.listeners.get((event, session_id), [])
+        if handler in handlers:
+            handlers.remove(handler)
+
+    def emit(self, event, params, session_id=None):
+        for handler in list(self.listeners.get((event, session_id), [])):
+            handler(params)
+
+    async def close(self):
+        self._closed.set()
 
     async def wait_closed(self):
         await self._closed.wait()
@@ -53,6 +74,54 @@ async def test_navigate_uses_primary_session(tmp_path):
     assert browser.cdp.sent == [("Page.navigate", {"url": "https://x"}, "sess")]
 
 
+async def test_navigate_raises_when_chrome_refuses(tmp_path):
+    browser = _browser(tmp_path)
+    browser.cdp.replies["Page.navigate"] = {"errorText": "net::ERR_NAME_NOT_RESOLVED"}
+    with pytest.raises(CDPError, match="ERR_NAME_NOT_RESOLVED"):
+        await browser.navigate("https://nope.invalid")
+
+
+async def test_navigate_wait_blocks_until_frame_stops(tmp_path):
+    browser = _browser(tmp_path)
+    browser.cdp.replies["Page.navigate"] = {"frameId": "f1"}
+    task = asyncio.create_task(browser.navigate("https://x", wait="load"))
+    await asyncio.sleep(0)
+    assert not task.done()
+    browser.cdp.emit("Page.frameStoppedLoading", {"frameId": "other"}, session_id="sess")
+    await asyncio.sleep(0)
+    assert not task.done()  # a different frame's stop must not release the wait
+    browser.cdp.emit("Page.frameStoppedLoading", {"frameId": "f1"}, session_id="sess")
+    await asyncio.wait_for(task, 1)
+    assert browser.cdp.listeners[("Page.frameStoppedLoading", "sess")] == []  # unsubscribed
+
+
+async def test_navigate_wait_tolerates_stop_racing_the_reply(tmp_path):
+    # The frame can finish loading before the Page.navigate reply is
+    # processed (fast file:// pages); the buffered stop must still release.
+    browser = _browser(tmp_path)
+    stub = browser.cdp
+    stub.replies["Page.navigate"] = {"frameId": "f1"}
+    original_send = stub.send
+
+    async def send(method, params=None, **kwargs):
+        result = await original_send(method, params, **kwargs)
+        if method == "Page.navigate":
+            stub.emit("Page.frameStoppedLoading", {"frameId": "f1"}, session_id="sess")
+        return result
+
+    stub.send = send
+    await asyncio.wait_for(browser.navigate("https://x", wait="load"), 1)
+
+
+async def test_evaluate_raises_jserror_on_page_exception(tmp_path):
+    browser = _browser(tmp_path)
+    browser.cdp.replies["Runtime.evaluate"] = {
+        "exceptionDetails": {"exception": {"description": "ReferenceError: nope is not defined"}}
+    }
+    with pytest.raises(JSError, match="nope is not defined"):
+        await browser.evaluate("nope()")
+
+
 async def test_serve_unblocks_on_event(tmp_path):
     browser = _browser(tmp_path)
     done = asyncio.Event()
@@ -60,7 +129,7 @@ async def test_serve_unblocks_on_event(tmp_path):
     await asyncio.sleep(0)
     assert not task.done()
     done.set()
-    await asyncio.wait_for(task, 1)
+    assert await asyncio.wait_for(task, 1) == "until"
 
 
 async def test_serve_unblocks_when_window_closes(tmp_path):
@@ -72,7 +141,7 @@ async def test_serve_unblocks_when_window_closes(tmp_path):
     await asyncio.sleep(0)
     assert not task.done()
     browser._on_target_destroyed({"targetId": "t1"})
-    await asyncio.wait_for(task, 1)
+    assert await asyncio.wait_for(task, 1) == "page-closed"
 
 
 async def test_serve_unblocks_on_connection_close(tmp_path):
@@ -80,7 +149,66 @@ async def test_serve_unblocks_on_connection_close(tmp_path):
     task = asyncio.create_task(browser.serve(until=asyncio.Event()))
     await asyncio.sleep(0)
     browser.cdp._closed.set()  # window closed -> CDP connection gone
-    await asyncio.wait_for(task, 1)
+    assert await asyncio.wait_for(task, 1) == "connection-lost"
+
+
+async def test_aclose_asks_browser_to_exit_before_terminating(tmp_path):
+    browser = _browser(tmp_path)
+    await browser.aclose()
+    assert browser.cdp.sent[0][0] == "Browser.close"  # orderly exit first
+    assert browser.cdp._closed.is_set()
+
+
+class TargetsStubCDP(StubCDP):
+    """targets() serves scripted batches; the last batch repeats."""
+
+    def __init__(self, batches):
+        super().__init__()
+        self.batches = list(batches)
+
+    async def targets(self):
+        return self.batches.pop(0) if len(self.batches) > 1 else self.batches[0]
+
+    async def create_target(self, url):
+        self.sent.append(("Target.createTarget", {"url": url}, None))
+        return "created"
+
+
+async def test_primary_target_prefers_launch_tab_over_restored(tmp_path):
+    browser = Browser(LaunchSpec(profile=tmp_path / "p"))
+    browser.handle = SimpleNamespace(primary_url="file:///scratch/blank.html")
+    cdp = TargetsStubCDP(
+        [
+            [
+                {"type": "page", "url": "about:blank", "targetId": "restored"},
+                {"type": "page", "url": "file:///scratch/blank.html", "targetId": "launch-tab"},
+            ]
+        ]
+    )
+    assert await browser._primary_target(cdp) == "launch-tab"
+
+
+async def test_primary_target_waits_for_lagging_launch_tab(tmp_path):
+    browser = Browser(LaunchSpec(profile=tmp_path / "p"))
+    browser.handle = SimpleNamespace(primary_url="file:///scratch/blank.html")
+    cdp = TargetsStubCDP(
+        [
+            [{"type": "page", "url": "about:blank", "targetId": "restored"}],
+            [
+                {"type": "page", "url": "about:blank", "targetId": "restored"},
+                {"type": "page", "url": "file:///scratch/blank.html", "targetId": "launch-tab"},
+            ],
+        ]
+    )
+    assert await browser._primary_target(cdp) == "launch-tab"
+
+
+async def test_primary_target_without_marker_keeps_old_behavior(tmp_path):
+    browser = Browser(LaunchSpec(profile=tmp_path / "p"))
+    cdp = TargetsStubCDP([[{"type": "page", "url": "about:blank", "targetId": "first"}]])
+    assert await browser._primary_target(cdp) == "first"
+    cdp = TargetsStubCDP([[]])
+    assert await browser._primary_target(cdp) == "created"
 
 
 async def test_notify_sends_no_reply(tmp_path):

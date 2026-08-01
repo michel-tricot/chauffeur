@@ -194,18 +194,24 @@ class StoreExtension(ExtensionSource):
     (i.e. every build/launch) re-downloads so store updates are picked up; when
     the store is unreachable an existing cached copy keeps working, so being
     offline never breaks a launch that worked before.
+
+    The pristine download lands in ``<cache dir>/<id>.src``, where the cache dir
+    is the one the build passes in (``<profile>.extensions`` for LaunchSpec
+    builds) — or ``cache_dir`` when set, anchoring the cache at a fixed location
+    independent of the profile (useful when other tooling inspects it).
     """
 
     extension_id: str
     prodversion: str = _STORE_PRODVERSION
     refresh: bool = False
     timeout: float = 30.0  # per-download timeout (seconds) for the store fetch
+    cache_dir: Path | None = None  # overrides the build-provided cache location
 
     def key(self) -> str:
         return self.extension_id
 
     def resolve(self, cache_dir: Path) -> Path:
-        cached = cache_dir.expanduser() / f"{self.extension_id}.src"
+        cached = (self.cache_dir or cache_dir).expanduser() / f"{self.extension_id}.src"
         have_copy = (cached / "manifest.json").exists()
         if have_copy and not self.refresh:
             return cached
@@ -280,13 +286,18 @@ class ExtensionSpec:
         prodversion: str = _STORE_PRODVERSION,
         refresh: bool = False,
         timeout: float = 30.0,
+        cache_dir: Path | None = None,
     ) -> ExtensionSpec:
         """Describe an extension pulled off the Chrome Web Store by id.
 
         ``refresh=True`` re-downloads on every build (picking up store updates)
         and falls back to the cached copy when the store is unreachable.
+        ``cache_dir`` anchors the pristine download at a fixed location instead
+        of the build's profile-derived cache.
         """
-        return cls(StoreExtension(extension_id, prodversion, refresh=refresh, timeout=timeout))
+        return cls(
+            StoreExtension(extension_id, prodversion, refresh=refresh, timeout=timeout, cache_dir=cache_dir)
+        )
 
     @property
     def key(self) -> str:

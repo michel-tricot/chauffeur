@@ -29,13 +29,13 @@ def test_extensions_imply_debugging_flag_only():
     assert not any(a.startswith("--load-extension") for a in args)
 
 
-def test_app_url_wins_over_url():
-    args = _args(url="https://a", app_url="https://b")
+def test_app_opens_url_as_app_window():
+    args = _args(url="https://b", app=True)
     assert "--app=https://b" in args
-    assert "https://a" not in args
+    assert args[-1] != "https://b"  # not also a trailing tab arg
 
 
-def test_url_appended_last():
+def test_url_appended_last_as_tab():
     args = _args(url="https://a")
     assert args[-1] == "https://a"
 
@@ -84,7 +84,7 @@ def test_bare_headless_launch_gets_no_url():
 
 def test_blank_does_not_override_url_or_app():
     assert _args(headless=False, url="https://a")[-1] == "https://a"
-    assert "about:blank" not in _args(headless=False, app_url="https://a")
+    assert "about:blank" not in _args(headless=False, url="https://a", app=True)
 
 
 def test_minimal_footprint_toggle():

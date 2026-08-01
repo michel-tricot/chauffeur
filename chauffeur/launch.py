@@ -20,7 +20,6 @@ from dataclasses import dataclass
 from importlib.resources import as_file
 from importlib.resources.abc import Traversable
 from pathlib import Path
-from typing import Any
 
 from chauffeur.browsers import catalog, resolve_browser
 from chauffeur.extension import build_extension, extensions_dir
@@ -30,7 +29,17 @@ log = logging.getLogger(__name__)
 
 
 class LaunchError(RuntimeError):
-    """The browser failed to start or its DevTools endpoint never came up."""
+    """The browser failed to start or its DevTools endpoint never came up.
+
+    ``returncode`` is the browser's exit code when it died before the endpoint
+    came up (its most common cause: another browser already holds the profile,
+    so Chrome's process singleton makes the new one exit immediately); None
+    when the process kept running but the endpoint never became ready.
+    """
+
+    def __init__(self, message: str, returncode: int | None = None) -> None:
+        super().__init__(message)
+        self.returncode = returncode
 
 
 def free_port() -> int:
@@ -96,27 +105,24 @@ def _blank_page_uri(stack: contextlib.ExitStack) -> str:
 
 def _prepare_pages(
     spec: LaunchSpec, stack: contextlib.ExitStack, defer_page: bool
-) -> tuple[LaunchSpec, str | None]:
-    """Resolve page/app_page into url/app_url on a copy of the spec.
+) -> tuple[LaunchSpec, str | None, str | None]:
+    """Resolve spec.url to a plain URI string on a copy of the spec.
 
-    With defer_page, the browser starts on about:blank and the resolved URI is
-    returned instead, so the caller can navigate once its channel is wired.
+    A str is used verbatim; a Path/traversable becomes a file:// URI (packaged
+    resources are extracted for the browser's lifetime). With defer_page and a
+    destination set, the browser launches on a unique blank page instead and the
+    resolved destination is returned, so the caller can navigate once its channel
+    is wired. Launching straight at the destination would leave the primary tab
+    ambiguous — session restore can add tabs — so the unique blank page doubles
+    as the launch tab's identity (returned third, kept on the handle).
     """
-    if spec.page is None and spec.app_page is None:
-        return spec, None
-    if spec.page is not None and spec.url is not None:
-        raise ValueError("pass either page or url, not both")
-    if spec.app_page is not None and spec.app_url is not None:
-        raise ValueError("pass either app_page or app_url, not both")
-    updates: dict[str, Any] = {"page": None, "app_page": None}
-    if spec.app_page is not None:  # the app window wins, like app_url over url
-        uri = _page_to_uri(spec.app_page, stack)
-        updates["app_url"] = _blank_page_uri(stack) if defer_page else uri
-    else:
-        assert spec.page is not None  # guaranteed by the early return above
-        uri = _page_to_uri(spec.page, stack)
-        updates["url"] = None if defer_page else uri
-    return dataclasses.replace(spec, **updates), uri if defer_page else None
+    destination = None
+    if spec.url is not None:
+        destination = spec.url if isinstance(spec.url, str) else _page_to_uri(spec.url, stack)
+    if destination is None or not defer_page:
+        return dataclasses.replace(spec, url=destination), None, None
+    blank = _blank_page_uri(stack)
+    return dataclasses.replace(spec, url=blank), destination, blank
 
 
 def _materialize_extensions(spec: LaunchSpec) -> tuple[Path, ...]:
@@ -193,9 +199,12 @@ class BrowserHandle:
     # Resources that must outlive the process (extracted page dirs); closed by
     # terminate().
     cleanup: contextlib.ExitStack | None = None
-    # Set when launch(defer_page=True) held back a page/app_page URI so the
-    # consumer can navigate after wiring its channel.
+    # Set when launch(defer_page=True) held back spec.url so the consumer can
+    # navigate to it after wiring its channel.
     deferred_url: str | None = None
+    # The unique blank URI the primary tab launched on when deferral is active;
+    # identifies that tab among session-restored ones.
+    primary_url: str | None = None
     # Built extension dirs, ready for Extensions.loadUnpacked over CDP.
     extensions: tuple[Path, ...] = ()
 
@@ -224,7 +233,7 @@ def launch(spec: LaunchSpec, *, ready_timeout: float = 15.0, defer_page: bool = 
     try:
         _warn_if_real_profile(spec.profile)
         extensions = _materialize_extensions(spec)
-        spec, deferred_url = _prepare_pages(spec, stack, defer_page)
+        spec, deferred_url, primary_url = _prepare_pages(spec, stack, defer_page)
         spec.profile.expanduser().mkdir(parents=True, exist_ok=True)
         _apply_ui_prefs(spec)
         # A named (string) position needs the screen size to resolve; explicit
@@ -235,12 +244,23 @@ def launch(spec: LaunchSpec, *, ready_timeout: float = 15.0, defer_page: bool = 
     except BaseException:
         stack.close()
         raise
-    handle = BrowserHandle(proc, port, info.binary, cleanup=stack, deferred_url=deferred_url, extensions=extensions)
+    handle = BrowserHandle(
+        proc,
+        port,
+        info.binary,
+        cleanup=stack,
+        deferred_url=deferred_url,
+        primary_url=primary_url,
+        extensions=extensions,
+    )
     deadline = time.monotonic() + ready_timeout
     while True:
         if proc.poll() is not None:
             handle.terminate()  # process is already dead; releases extracted pages
-            raise LaunchError(f"{info.binary.name} exited with code {proc.returncode} before DevTools came up")
+            raise LaunchError(
+                f"{info.binary.name} exited with code {proc.returncode} before DevTools came up",
+                returncode=proc.returncode,
+            )
         try:
             with urllib.request.urlopen(f"http://127.0.0.1:{port}/json/version", timeout=1) as resp:
                 json.loads(resp.read())

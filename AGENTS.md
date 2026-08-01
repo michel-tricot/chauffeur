@@ -53,11 +53,13 @@ To cut a release:
 - `dispatch.py` + `serde.py`: command registry and dataclass/JSON
   validation. Wire types are deliberately limited to what survives a JSON
   round trip; schema mistakes fail at decoration time, not on first message.
-- `page` / `app_page` on `LaunchSpec` are resolved in `launch.py`
-  (`_prepare_pages`): packaged (zip/wheel) resources are extracted, siblings
-  included, for the browser's lifetime via an `ExitStack` on
-  `BrowserHandle`. With `Browser`, navigation is deferred until the channel
-  is installed so page scripts can use `py_chauffeur.*` from their first line.
+- `LaunchSpec.url` (str URL, or a `Path`/traversable local page) and the `app`
+  bool (chromeless app window vs tab) are the whole destination surface;
+  `launch.py` `_prepare_pages` resolves a `Path`/traversable to a `file://` URI
+  (packaged zip/wheel resources are extracted, siblings included, for the
+  browser's lifetime via an `ExitStack` on `BrowserHandle`). With `Browser`,
+  navigation is deferred until the channel is installed so page scripts can use
+  `py_chauffeur.*` from their first line.
 - `Browser.serve()` unblocks on: primary window/tab closed, CDP connection
   dropped, or an optional `until` event.
 - `SyncBrowser` (`chauffeur/sync.py`) is a synchronous facade: it runs the

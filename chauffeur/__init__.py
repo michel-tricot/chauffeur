@@ -8,8 +8,8 @@ directions with a decorator-based command API.
 # source classes (use ExtensionSpec / ExtensionSpec.from_store), and the
 # lower-level UA helpers (use Browser.capture_user_agent / user_agent="auto")
 # stay reachable via their submodules but are intentionally not re-exported.
-from chauffeur.browser import Browser
-from chauffeur.browsers import BrowserInfo, installed_browsers, resolve_browser
+from chauffeur.browser import Browser, JSError, ServeReason
+from chauffeur.browsers import BrowserInfo, BrowserNotFoundError, installed_browsers, resolve_browser
 from chauffeur.cdp import CDPClient, CDPError
 from chauffeur.extension import (
     ExtensionNotFoundError,
@@ -20,6 +20,7 @@ from chauffeur.extension import (
     find_installed_extension,
 )
 from chauffeur.launch import BrowserHandle, LaunchError, launch
+from chauffeur.profiles import wipe_profile
 from chauffeur.serde import SchemaError, SerdeError
 from chauffeur.spec import LaunchSpec, Window
 from chauffeur.sync import SyncBrowser
@@ -29,14 +30,17 @@ __all__ = [
     "Browser",
     "BrowserHandle",
     "BrowserInfo",
+    "BrowserNotFoundError",
     "CDPClient",
     "CDPError",
     "ExtensionNotFoundError",
     "ExtensionSpec",
+    "JSError",
     "LaunchError",
     "LaunchSpec",
     "SchemaError",
     "SerdeError",
+    "ServeReason",
     "SyncBrowser",
     "Window",
     "build_extension",
@@ -47,4 +51,5 @@ __all__ = [
     "launch",
     "resolve_browser",
     "ua_cache_path",
+    "wipe_profile",
 ]

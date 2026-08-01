@@ -89,6 +89,12 @@ class CDPClient:
         """
         self._listeners.setdefault((event, session_id), []).append(handler)
 
+    def off(self, event: str, handler: Callable, *, session_id: str | None = None) -> None:
+        """Remove a listener registered with on(); unknown handlers are ignored."""
+        handlers = self._listeners.get((event, session_id), [])
+        if handler in handlers:
+            handlers.remove(handler)
+
     async def _read_loop(self) -> None:
         try:
             async for raw in self._ws:

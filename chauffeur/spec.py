@@ -54,16 +54,15 @@ class LaunchSpec:
     browser: str | Path = "auto"
     headless: bool = True
     devtools_port: int = 0  # 0 = pick a free port at launch
-    url: str | None = None
-    app_url: str | None = None  # --app chromeless window; wins over url
-    # Local page to show without a server: an HTML file whose relative
-    # css/js/image siblings load alongside it over file://. A filesystem Path
-    # is used in place; an importlib.resources traversable (data packaged in
-    # a wheel/zip) is extracted, siblings included, for the browser's
-    # lifetime. With Browser, navigation happens after the py_chauffeur channel is
-    # installed, so the page's scripts can use py_chauffeur.* immediately.
-    page: Path | Traversable | None = None  # opens as a tab; conflicts with url
-    app_page: Path | Traversable | None = None  # chromeless --app window; wins over page
+    # Where to point the browser. A str is any URL used verbatim (file://,
+    # http(s)://, chrome://, data:, ...); a Path or importlib.resources
+    # traversable is a local page resolved to file:// (packaged/zipped resources
+    # are extracted with their sibling css/js for the browser's lifetime). With
+    # Browser, navigation happens after the py_chauffeur channel is installed, so
+    # the page's scripts can use py_chauffeur.* from their first line.
+    url: str | Path | Traversable | None = None
+    # Open the destination as a chromeless app window instead of a browser tab.
+    app: bool = False
     window: Window | None = None
     # Extensions to load over CDP (Extensions.loadUnpacked), branded Chrome
     # 137+ ignores --load-extension, so CDP is the only reliable path and
@@ -78,7 +77,7 @@ class LaunchSpec:
     # Headed windows start clean by default (no bookmarks bar or startup
     # clutter), so a window can be presented as an app or dialog rather than a
     # browser; set True to show Chrome's normal browsing UI. Ignored when
-    # headless. For a fully chromeless window, use app_url/app_page.
+    # headless. For a fully chromeless window, use app=True.
     show_browser_ui: bool = False
     # UA to present. An explicit string is used verbatim (headed or headless).
     # "auto" replays the captured UA on headless runs only (headed browsers
@@ -86,9 +85,13 @@ class LaunchSpec:
     user_agent: str | Literal["auto"] | None = None
     extra_flags: tuple[str, ...] = ()
 
+    def __post_init__(self) -> None:
+        if self.app and self.url is None:
+            raise ValueError("app=True needs a url to open")
+
 
 def build_args(binary: Path, spec: LaunchSpec, port: int, *, screen: tuple[int, int] | None = None) -> list[str]:
-    assert spec.page is None and spec.app_page is None, "resolve page/app_page via launch() first"
+    assert spec.url is None or isinstance(spec.url, str), "resolve a Path/traversable url via launch() first"
     args = [
         str(binary),
         f"--remote-debugging-port={port}",
@@ -107,12 +110,11 @@ def build_args(binary: Path, spec: LaunchSpec, port: int, *, screen: tuple[int, 
         args.extend(MINIMAL_FOOTPRINT_FLAGS)
     if spec.window:
         args.extend(_window_flags(spec.window, screen))
-    if spec.app_url:
-        args.append(f"--app={spec.app_url}")
     args.extend(spec.extra_flags)
-    if spec.url and not spec.app_url:
-        args.append(spec.url)
-    elif not spec.app_url and not spec.headless and not spec.show_browser_ui:
+    if spec.url:
+        # --app is a flag; a tab URL must be the trailing positional arg.
+        args.append(f"--app={spec.url}" if spec.app else spec.url)
+    elif not spec.headless and not spec.show_browser_ui:
         # A bare headed launch would open the New Tab Page, which forces the
         # bookmarks bar (and other clutter) on; start clean instead.
         args.append("about:blank")

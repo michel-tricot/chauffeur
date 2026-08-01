@@ -44,59 +44,61 @@ def test_zip_page_extracted_with_siblings(tmp_path):
     assert not extracted.exists()  # extraction lives only as long as the stack
 
 
-def test_page_conflicts_with_url(tmp_path):
-    spec = LaunchSpec(profile=tmp_path / "p", page=_page(tmp_path), url="https://x")
-    with contextlib.ExitStack() as stack, pytest.raises(ValueError, match="not both"):
-        _prepare_pages(spec, stack, defer_page=False)
+def test_app_requires_url():
+    with pytest.raises(ValueError, match="app=True needs a url"):
+        LaunchSpec(profile=Path("/tmp/p"), app=True)
 
 
-def test_app_page_conflicts_with_app_url(tmp_path):
-    spec = LaunchSpec(profile=tmp_path / "p", app_page=_page(tmp_path), app_url="https://x")
-    with contextlib.ExitStack() as stack, pytest.raises(ValueError, match="not both"):
-        _prepare_pages(spec, stack, defer_page=False)
-
-
-def test_page_becomes_trailing_url(tmp_path):
-    page = _page(tmp_path)
-    spec = LaunchSpec(profile=tmp_path / "p", page=page)
-    with contextlib.ExitStack() as stack:
-        resolved, deferred = _prepare_pages(spec, stack, defer_page=False)
-        assert deferred is None
-        args = build_args(Path("/bin/chrome"), resolved, 9222)
-        assert args[-1] == page.resolve().as_uri()
-
-
-def test_app_page_becomes_app_flag(tmp_path):
-    page = _page(tmp_path)
-    spec = LaunchSpec(profile=tmp_path / "p", app_page=page)
-    with contextlib.ExitStack() as stack:
-        resolved, _ = _prepare_pages(spec, stack, defer_page=False)
-        args = build_args(Path("/bin/chrome"), resolved, 9222)
-        assert f"--app={page.resolve().as_uri()}" in args
-
-
-def test_deferred_page_starts_blank(tmp_path):
-    page = _page(tmp_path)
-    spec = LaunchSpec(profile=tmp_path / "p", app_page=page)
-    with contextlib.ExitStack() as stack:
-        resolved, deferred = _prepare_pages(spec, stack, defer_page=True)
-        assert deferred == page.resolve().as_uri()
-        # A real file, not about:blank, Chrome ignores --app=about:blank and
-        # would open a tabbed window instead of an app window.
-        assert resolved.app_url.startswith("file://")
-        assert resolved.app_url.endswith("blank.html")
-        assert Path(resolved.app_url.removeprefix("file://")).is_file()
-
-    spec = LaunchSpec(profile=tmp_path / "p", page=page)
-    with contextlib.ExitStack() as stack:
-        resolved, deferred = _prepare_pages(spec, stack, defer_page=True)
-        assert deferred == page.resolve().as_uri()
-        assert resolved.url is None
-
-
-def test_spec_without_pages_passes_through(tmp_path):
+def test_string_url_is_verbatim_trailing_arg(tmp_path):
     spec = LaunchSpec(profile=tmp_path / "p", url="https://x")
     with contextlib.ExitStack() as stack:
-        resolved, deferred = _prepare_pages(spec, stack, defer_page=True)
-        assert resolved is spec
-        assert deferred is None
+        resolved, deferred, primary = _prepare_pages(spec, stack, defer_page=False)
+        assert (deferred, primary) == (None, None)
+        assert build_args(Path("/bin/chrome"), resolved, 9222)[-1] == "https://x"
+
+
+def test_path_url_becomes_trailing_file_uri(tmp_path):
+    page = _page(tmp_path)
+    spec = LaunchSpec(profile=tmp_path / "p", url=page)
+    with contextlib.ExitStack() as stack:
+        resolved, _, _ = _prepare_pages(spec, stack, defer_page=False)
+        assert build_args(Path("/bin/chrome"), resolved, 9222)[-1] == page.resolve().as_uri()
+
+
+def test_app_makes_app_flag(tmp_path):
+    page = _page(tmp_path)
+    spec = LaunchSpec(profile=tmp_path / "p", url=page, app=True)
+    with contextlib.ExitStack() as stack:
+        resolved, _, _ = _prepare_pages(spec, stack, defer_page=False)
+        args = build_args(Path("/bin/chrome"), resolved, 9222)
+        assert f"--app={page.resolve().as_uri()}" in args
+        assert args[-1] != page.resolve().as_uri()  # a flag, not the trailing tab arg
+
+
+def test_deferred_destination_starts_on_blank(tmp_path):
+    # An app page: the destination is held back and the window launches on a
+    # unique blank file (Chrome ignores --app=about:blank), staying an app window.
+    page = _page(tmp_path)
+    spec = LaunchSpec(profile=tmp_path / "p", url=page, app=True)
+    with contextlib.ExitStack() as stack:
+        resolved, deferred, primary = _prepare_pages(spec, stack, defer_page=True)
+        assert deferred == page.resolve().as_uri()
+        assert resolved.url == primary
+        assert primary.startswith("file://") and primary.endswith("blank.html")
+        assert Path(primary.removeprefix("file://")).is_file()
+        assert resolved.app is True  # still launches as an app window
+        assert f"--app={primary}" in build_args(Path("/bin/chrome"), resolved, 9222)
+
+    # A remote URL defers the same way, so the launch tab is identifiable.
+    spec = LaunchSpec(profile=tmp_path / "p", url="https://x/login")
+    with contextlib.ExitStack() as stack:
+        resolved, deferred, primary = _prepare_pages(spec, stack, defer_page=True)
+        assert deferred == "https://x/login"
+        assert resolved.url == primary and primary.endswith("blank.html")
+
+
+def test_spec_without_destination_passes_through(tmp_path):
+    spec = LaunchSpec(profile=tmp_path / "p")
+    with contextlib.ExitStack() as stack:
+        resolved, deferred, primary = _prepare_pages(spec, stack, defer_page=True)
+        assert (resolved.url, deferred, primary) == (None, None, None)

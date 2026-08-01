@@ -18,9 +18,9 @@ from __future__ import annotations
 import asyncio
 import threading
 from collections.abc import Callable
-from typing import Any
+from typing import Any, Literal
 
-from chauffeur.browser import Browser
+from chauffeur.browser import Browser, ServeReason
 from chauffeur.launch import BrowserHandle
 from chauffeur.spec import LaunchSpec
 
@@ -52,8 +52,8 @@ class SyncBrowser:
     def evaluate(self, expression: str, *, await_promise: bool = True, timeout: float = 30.0) -> Any:
         return self._run(self._async.evaluate(expression, await_promise=await_promise, timeout=timeout), timeout + 5)
 
-    def navigate(self, url: str) -> None:
-        self._run(self._async.navigate(url))
+    def navigate(self, url: str, *, wait: Literal["load"] | None = None, timeout: float = 30.0) -> None:
+        self._run(self._async.navigate(url, wait=wait, timeout=timeout), timeout + 5)
 
     def capture_user_agent(self) -> str | None:
         return self._run(self._async.capture_user_agent())
@@ -77,9 +77,10 @@ class SyncBrowser:
             raise
         return self
 
-    def serve(self, *, until: threading.Event | None = None) -> None:
+    def serve(self, *, until: threading.Event | None = None) -> ServeReason:
         """Block the calling thread until the window/connection closes, or
-        ``until`` (a threading.Event) is set."""
+        ``until`` (a threading.Event) is set; returns why it stopped
+        ("page-closed", "connection-lost", or "until")."""
         stop = asyncio.Event()
         watcher: threading.Thread | None = None
         if until is not None:
@@ -91,7 +92,7 @@ class SyncBrowser:
             watcher = threading.Thread(target=_watch, daemon=True, name="chauffeur-serve")
             watcher.start()
         try:
-            self._run(self._async.serve(until=stop))
+            return self._run(self._async.serve(until=stop))
         finally:
             if until is not None and watcher is not None:
                 until.set()  # release the watcher if serve ended for another reason
