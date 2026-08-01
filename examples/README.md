@@ -17,7 +17,8 @@ uv run examples/01_launch_and_evaluate/main.py
 | `05_extension_build` | Patch an extension with `ExtensionBuild` and load it via `Extensions.loadUnpacked` |
 | `06_ua_capture_replay` | Capture a User-Agent and replay it with the Headless marker stripped |
 | `07_packaged_ui` | A local page with separate css/js via `app_page` — no server, `py` available at load; close it from a UI button (needs a desktop session) |
+| `08_live_updates` | Python pushes updates into the page every second — clock, load average, pulse (needs a desktop session) |
 
 All of them use a throwaway profile in a temp directory and a headless browser —
-except `04_app_window` and `07_packaged_ui`, which open a real window and block
-until you close it (04) or click its button (07).
+except `04_app_window`, `07_packaged_ui`, and `08_live_updates`, which open a
+real window and block until you close it (or click 07's button).

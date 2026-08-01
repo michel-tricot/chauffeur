@@ -39,18 +39,30 @@ HTML = """<!doctype html>
 </html>
 """
 
-CSS = """body { background: rgb(20, 30, 40); }
+CSS = """:root { color-scheme: dark; }
+body {
+  margin: 0; height: 100vh;
+  background: radial-gradient(120% 90% at 50% -10%, #1e293b, #0f172a);
+}
 dialog {
   font-family: system-ui;
   text-align: center;
-  padding: 1.5rem 2rem;
-  border: none;
-  border-radius: 0.8rem;
-  box-shadow: 0 1rem 3rem rgb(0 0 0 / 0.5);
+  padding: 2rem 2.4rem;
+  border: 1px solid #e2e8f0;
+  border-radius: 1rem;
+  background: #f8fafc;
+  color: #0f172a;
+  box-shadow: 0 24px 60px rgb(0 0 0 / 0.5);
 }
-dialog::backdrop { background: rgb(0 0 0 / 0.4); backdrop-filter: blur(2px); }
-h1 { font-size: 1.2rem; }
-button { font-size: 1.1rem; padding: 0.8rem 1.2rem; }
+dialog::backdrop { background: rgb(2 6 23 / 0.55); backdrop-filter: blur(3px); }
+h1 { margin: 0 0 1.3rem; font-size: 1.15rem; font-weight: 600; }
+button {
+  font-size: 1rem; font-weight: 600; padding: 0.7rem 1.3rem; border: none;
+  border-radius: 0.7rem; background: #6366f1; color: #fff; cursor: pointer;
+  transition: background 0.15s;
+}
+button:hover { background: #818cf8; }
+button:focus-visible { outline: 2px solid #c7d2fe; outline-offset: 2px; }
 """
 
 JS = """const dlg = document.querySelector("#dlg");
