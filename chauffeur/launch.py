@@ -23,6 +23,7 @@ from pathlib import Path
 from typing import Any
 
 from chauffeur.browsers import catalog, resolve_browser
+from chauffeur.extension import extensions_dir
 from chauffeur.spec import LaunchSpec, build_args
 
 log = logging.getLogger(__name__)
@@ -118,6 +119,28 @@ def _prepare_pages(
     return dataclasses.replace(spec, **updates), uri if defer_page else None
 
 
+def _materialize_extensions(spec: LaunchSpec) -> tuple[Path, ...]:
+    """Build spec.extensions into <profile>.extensions/<key>, ready to load.
+
+    The build dir is derived from the profile so one path anchors all of the
+    app's browser state — no second data-path to misconfigure. Rebuilding on
+    every launch picks up bumped installed versions automatically.
+    """
+    built: list[Path] = []
+    used: set[str] = set()
+    for ext in spec.extensions:
+        if isinstance(ext, Path):
+            built.append(ext.expanduser().resolve())
+            continue
+        key, n = ext.key, 1
+        while key in used:
+            n += 1
+            key = f"{ext.key}-{n}"
+        used.add(key)
+        built.append(ext.build(extensions_dir(spec.profile) / key))
+    return tuple(built)
+
+
 def _warn_if_real_profile(profile: Path) -> None:
     """Point out a launch that targets a real browser's user data dir.
 
@@ -173,6 +196,8 @@ class BrowserHandle:
     # Set when launch(defer_page=True) held back a page/app_page URI so the
     # consumer can navigate after wiring its channel.
     deferred_url: str | None = None
+    # Built extension dirs, ready for Extensions.loadUnpacked over CDP.
+    extensions: tuple[Path, ...] = ()
 
     @property
     def running(self) -> bool:
@@ -198,6 +223,7 @@ def launch(spec: LaunchSpec, *, ready_timeout: float = 15.0, defer_page: bool = 
     stack = contextlib.ExitStack()
     try:
         _warn_if_real_profile(spec.profile)
+        extensions = _materialize_extensions(spec)
         spec, deferred_url = _prepare_pages(spec, stack, defer_page)
         spec.profile.expanduser().mkdir(parents=True, exist_ok=True)
         _apply_ui_prefs(spec)
@@ -207,7 +233,7 @@ def launch(spec: LaunchSpec, *, ready_timeout: float = 15.0, defer_page: bool = 
     except BaseException:
         stack.close()
         raise
-    handle = BrowserHandle(proc, port, info.binary, cleanup=stack, deferred_url=deferred_url)
+    handle = BrowserHandle(proc, port, info.binary, cleanup=stack, deferred_url=deferred_url, extensions=extensions)
     deadline = time.monotonic() + ready_timeout
     while True:
         if proc.poll() is not None:

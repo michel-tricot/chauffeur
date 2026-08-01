@@ -45,6 +45,7 @@ class Browser:
         self._cdp_listeners: list[tuple[str, Callable]] = []
         self.handle: BrowserHandle | None = None
         self.cdp: CDPClient | None = None
+        self.extension_ids: list[str] = []
         self._session_id: str | None = None
         self._target_id: str | None = None
         # Set when the primary window/tab is closed. Chrome itself may keep
@@ -117,6 +118,12 @@ class Browser:
             cdp = self.cdp = await CDPClient.connect(self.handle.port)
             for event, fn in self._cdp_listeners:
                 cdp.on(event, fn)
+            # Branded Chrome 137+ ignores --load-extension; CDP is the only
+            # reliable way to load unpacked extensions.
+            self.extension_ids = []
+            for ext_path in self.handle.extensions:
+                loaded = await cdp.send("Extensions.loadUnpacked", {"path": str(ext_path)})
+                self.extension_ids.append(loaded["id"])
             target_id = await self._primary_target(cdp)
             self._target_id = target_id
             cdp.on("Target.targetDestroyed", self._on_target_destroyed)

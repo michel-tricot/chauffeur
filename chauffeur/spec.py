@@ -7,6 +7,7 @@ from importlib.resources.abc import Traversable
 from pathlib import Path
 from typing import Literal
 
+from chauffeur.extension import ExtensionBuild
 from chauffeur.ua import resolve_user_agent
 
 # Trims the process footprint and keeps background pages/service workers
@@ -49,8 +50,14 @@ class LaunchSpec:
     page: Path | Traversable | None = None  # opens as a tab; conflicts with url
     app_page: Path | Traversable | None = None  # chromeless --app window; wins over page
     window: Window | None = None
-    load_extensions: tuple[Path, ...] = ()
-    # Needed for Extensions.loadUnpacked over CDP; implied by load_extensions.
+    # Extensions to load over CDP (Extensions.loadUnpacked) — branded Chrome
+    # 137+ ignores --load-extension, so CDP is the only reliable path and
+    # loading requires Browser (launch() alone has no CDP connection).
+    # An ExtensionBuild is rebuilt on every launch into
+    # <profile>.extensions/<key>, so a bumped installed version is picked up
+    # automatically; a plain Path loads a pre-built directory as-is.
+    extensions: tuple[ExtensionBuild | Path, ...] = ()
+    # Enables Extensions.loadUnpacked; implied by extensions.
     extension_debugging: bool = False
     minimal_footprint: bool = True
     # Headed windows start clean: bookmarks bar hidden and about:blank instead
@@ -78,10 +85,8 @@ def build_args(binary: Path, spec: LaunchSpec, port: int, *, screen: tuple[int, 
     user_agent = _resolve_ua(binary, spec)
     if user_agent:
         args.append(f"--user-agent={user_agent}")
-    if spec.extension_debugging or spec.load_extensions:
+    if spec.extension_debugging or spec.extensions:
         args.append("--enable-unsafe-extension-debugging")
-    if spec.load_extensions:
-        args.append("--load-extension=" + ",".join(str(p) for p in spec.load_extensions))
     if spec.minimal_footprint:
         args.extend(MINIMAL_FOOTPRINT_FLAGS)
     if spec.window:

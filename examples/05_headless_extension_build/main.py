@@ -1,10 +1,12 @@
-"""Patch an extension with ExtensionBuild and load it at launch.
+"""Patch an extension and let the launch pipeline build and load it.
 
-Creates a throwaway MV3 extension so the example is self-contained, then runs
-the real pipeline: copy to a workdir, inject config, append bridge code,
-rewrite the manifest, and load the build into a headless browser. To patch a
-real installed extension instead, replace the generated source with
-find_installed_extension("<extension id>").
+Creates a throwaway MV3 extension so the example is self-contained, then
+hands the ExtensionBuild to LaunchSpec.extensions: chauffeur builds it into
+<profile>.extensions/<name> on every launch (so a bumped installed version
+is always picked up) and loads it over CDP with Extensions.loadUnpacked —
+branded Chrome 137+ ignores --load-extension, so CDP is the reliable path.
+To patch a real installed extension instead, replace the generated source
+with find_installed_extension("<extension id>").
 
     uv run examples/05_headless_extension_build/main.py
 """
@@ -35,24 +37,19 @@ def make_source(root: Path) -> Path:
 async def main() -> None:
     with tempfile.TemporaryDirectory() as tmp:
         root = Path(tmp)
-        built = (
-            ExtensionBuild(make_source(root), workdir=root / "ext-build")
+        ext = (
+            ExtensionBuild(make_source(root))  # no workdir: built beside the profile
             .inject_config("background.js", {"endpoint": "http://127.0.0.1:8765", "token": "demo"})
             .append("background.js", 'console.log("bridge appended by chauffeur");')
             .patch_manifest(lambda m: {**m, "name": m["name"] + " (patched)"})
-            .build()
         )
-        print("--- patched background.js ---")
-        print((built / "background.js").read_text())
-        print("--- patched name:", json.loads((built / "manifest.json").read_text())["name"])
-
-        # Branded Chrome (137+) ignores --load-extension, so load over CDP;
-        # extension_debugging=True adds the flag Extensions.loadUnpacked needs.
-        # With Chromium/dev builds, load_extensions=(built,) also works.
-        spec = LaunchSpec(profile=root / "profile", headless=True, extension_debugging=True)
+        spec = LaunchSpec(profile=root / "profile", headless=True, extensions=(ext,))
         async with Browser(spec) as browser:
-            loaded = await browser.cdp.send("Extensions.loadUnpacked", {"path": str(built)})
-            print("loaded, id:", loaded["id"])
+            built = browser.handle.extensions[0]
+            print("built at:", built)
+            print("--- patched background.js ---")
+            print((built / "background.js").read_text())
+            print("loaded, id:", browser.extension_ids[0])
             for _ in range(20):  # the service worker can take a beat to spin up
                 ours = [t for t in await browser.cdp.targets() if t["url"].endswith("/background.js")]
                 if ours:

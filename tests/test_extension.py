@@ -2,7 +2,9 @@ import json
 
 import pytest
 
-from chauffeur.extension import ExtensionBuild
+from chauffeur.extension import ExtensionBuild, extensions_dir
+from chauffeur.launch import _materialize_extensions
+from chauffeur.spec import LaunchSpec
 
 
 def _make_source(tmp_path):
@@ -57,6 +59,32 @@ def test_build_refuses_source_inside_workdir(tmp_path):
     src = _make_source(tmp_path)
     with pytest.raises(ValueError, match="overlaps"):
         ExtensionBuild(src, tmp_path).build()
+
+
+def test_key_slugs_manifest_name(tmp_path):
+    src = _make_source(tmp_path)
+    assert ExtensionBuild(src).key == "ext"
+
+
+def test_build_without_workdir_raises(tmp_path):
+    with pytest.raises(ValueError, match="no workdir"):
+        ExtensionBuild(_make_source(tmp_path)).build()
+
+
+def test_materialize_builds_beside_profile(tmp_path):
+    src = _make_source(tmp_path)
+    profile = tmp_path / "profile"
+    spec = LaunchSpec(profile=profile, extensions=(ExtensionBuild(src), ExtensionBuild(src)))
+    built = _materialize_extensions(spec)
+    assert built[0] == (extensions_dir(profile) / "ext").resolve()
+    assert built[1].name == "ext-2"  # same manifest name: second build gets a suffix
+    assert (built[0] / "manifest.json").is_file()
+
+
+def test_materialize_passes_prebuilt_paths_through(tmp_path):
+    prebuilt = tmp_path / "prebuilt"
+    spec = LaunchSpec(profile=tmp_path / "profile", extensions=(prebuilt,))
+    assert _materialize_extensions(spec) == (prebuilt.resolve(),)
 
 
 def test_build_refuses_foreign_directory(tmp_path):

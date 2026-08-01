@@ -47,10 +47,10 @@ runners.
 
 - Chrome silently ignores `--app=about:blank` and opens a *tabbed* window;
   deferred app pages therefore launch on a real placeholder file.
-- Branded Google Chrome 137+ silently ignores `--load-extension`. Load
-  unpacked extensions over CDP instead: `extension_debugging=True` +
-  `Extensions.loadUnpacked` (see `examples/05_headless_extension_build`).
-  Chromium and
+- Branded Google Chrome 137+ silently ignores `--load-extension`, so
+  chauffeur never uses it: `LaunchSpec.extensions` builds into
+  `<profile>.extensions/<key>` at launch and `Browser.start()` loads each
+  over CDP (`Extensions.loadUnpacked`). Chromium and
   dev builds still honor the flag.
 - On macOS the browser process outlives its last window. "User closed the
   app" is detected via `Target.targetDestroyed` on the primary target — the

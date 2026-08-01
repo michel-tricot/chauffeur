@@ -9,6 +9,7 @@ Extensions.loadUnpacked over CDP.
 from __future__ import annotations
 
 import json
+import re
 import shutil
 from collections.abc import Callable
 from pathlib import Path
@@ -45,17 +46,39 @@ def find_installed_extension(extension_id: str, *, must_contain: str = "manifest
     return best[1]
 
 
+def extensions_dir(profile: Path) -> Path:
+    """Where derived extension builds live: ``<profile>.extensions`` beside it.
+
+    Same family as the ``<profile>.ua`` sidecar — one profile path anchors
+    all of chauffeur's per-app state.
+    """
+    profile = profile.expanduser()
+    return profile.parent / f"{profile.name}.extensions"
+
+
 class ExtensionBuild:
     """A working copy of an extension that can be patched, then built.
 
     Rebuild is idempotent: build() re-copies from source and re-applies the
     recorded patches, so a bumped installed version is picked up automatically.
+    workdir is optional — hand the build to ``LaunchSpec.extensions`` and it is
+    built beside the profile on every launch, keyed by :attr:`key`.
     """
 
-    def __init__(self, source: Path, workdir: Path) -> None:
+    def __init__(self, source: Path, workdir: Path | None = None) -> None:
         self.source = source
         self.workdir = workdir
         self._patches: list[Callable[[Path], None]] = []
+
+    @property
+    def key(self) -> str:
+        """Directory slug for derived builds, from the source manifest name."""
+        try:
+            name = json.loads((self.source / "manifest.json").read_text()).get("name", "")
+        except (OSError, ValueError):
+            name = ""
+        slug = re.sub(r"[^a-z0-9]+", "-", str(name).lower()).strip("-")
+        return slug or "extension"
 
     def append(self, relative: str, text: str) -> ExtensionBuild:
         def patch(root: Path) -> None:
@@ -93,9 +116,12 @@ class ExtensionBuild:
         self._patches.append(apply)
         return self
 
-    def build(self) -> Path:
+    def build(self, workdir: Path | None = None) -> Path:
+        dest = workdir or self.workdir
+        if dest is None:
+            raise ValueError("no workdir: pass one here or at construction, or launch via LaunchSpec.extensions")
         source = self.source.expanduser().resolve()
-        workdir = self.workdir.expanduser().resolve()
+        workdir = dest.expanduser().resolve()
         if workdir.is_relative_to(source) or source.is_relative_to(workdir):
             raise ValueError(f"workdir {workdir} overlaps extension source {source}")
         if workdir.exists():

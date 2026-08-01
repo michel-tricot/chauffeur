@@ -129,16 +129,21 @@ from chauffeur import ExtensionBuild, find_installed_extension
 
 src = find_installed_extension("pejdijmoenmkgeppbflobdenhhabjlaj")
 ext = (
-    ExtensionBuild(src, workdir=Path("~/.myapp/extension").expanduser())
+    ExtensionBuild(src)
     .inject_config("background.js", {"port": 8765, "token": "…"})
     .append("background.js", bridge_js)
     .patch_manifest(lambda m: {**m, "name": m["name"] + " (patched)"})
 )
-spec = LaunchSpec(profile=..., load_extensions=(ext.build(),))
+spec = LaunchSpec(profile=..., extensions=(ext,))
 ```
 
-`build()` is idempotent and re-copies from source, so a bumped installed
-version is picked up on the next run.
+The build lands beside the profile (`<profile>.extensions/<name>`) — one
+path anchors all of the app's browser state, nothing to configure twice —
+and is rebuilt on every launch, so a bumped installed version is picked up
+automatically. Loading happens over CDP (`Extensions.loadUnpacked`, ids on
+`browser.extension_ids`) because branded Chrome 137+ silently ignores
+`--load-extension`; this means extensions load when driving the browser
+through `Browser`, not bare `launch()`.
 
 ## Replay a captured User-Agent (Cloudflare)
 

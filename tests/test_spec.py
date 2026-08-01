@@ -20,10 +20,11 @@ def test_headed_omits_headless():
     assert "--headless=new" not in _args(headless=False)
 
 
-def test_extension_flags_imply_debugging():
-    args = _args(load_extensions=(Path("/tmp/ext"),))
+def test_extensions_imply_debugging_flag_only():
+    args = _args(extensions=(Path("/tmp/ext"),))
     assert "--enable-unsafe-extension-debugging" in args
-    assert "--load-extension=/tmp/ext" in args
+    # Branded Chrome ignores --load-extension; loading happens over CDP.
+    assert not any(a.startswith("--load-extension") for a in args)
 
 
 def test_app_url_wins_over_url():
