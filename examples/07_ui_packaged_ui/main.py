@@ -47,22 +47,24 @@ body {
 dialog {
   font-family: system-ui;
   text-align: center;
-  padding: 2rem 2.4rem;
-  border: 1px solid #e2e8f0;
+  padding: 2rem 2.6rem;
+  border: 1px solid rgb(148 163 184 / 0.18);
   border-radius: 1rem;
-  background: #f8fafc;
-  color: #0f172a;
-  box-shadow: 0 24px 60px rgb(0 0 0 / 0.5);
+  background: linear-gradient(180deg, #253044, #1b2334);
+  color: #e2e8f0;
+  box-shadow: 0 24px 60px rgb(0 0 0 / 0.6);
 }
-dialog::backdrop { background: rgb(2 6 23 / 0.55); backdrop-filter: blur(3px); }
-h1 { margin: 0 0 1.3rem; font-size: 1.15rem; font-weight: 600; }
+dialog::backdrop { background: rgb(2 6 23 / 0.6); backdrop-filter: blur(4px); }
+h1 { margin: 0 0 1.4rem; font-size: 1.05rem; font-weight: 600; color: #cbd5e1; }
 button {
   font-size: 1rem; font-weight: 600; padding: 0.7rem 1.3rem; border: none;
   border-radius: 0.7rem; background: #6366f1; color: #fff; cursor: pointer;
-  transition: background 0.15s;
+  box-shadow: 0 8px 24px rgb(99 102 241 / 0.3);
+  transition: background 0.15s, transform 0.05s;
 }
 button:hover { background: #818cf8; }
-button:focus-visible { outline: 2px solid #c7d2fe; outline-offset: 2px; }
+button:active { transform: translateY(1px); }
+button:focus-visible { outline: 2px solid rgb(129 140 248 / 0.7); outline-offset: 3px; }
 """
 
 JS = """const dlg = document.querySelector("#dlg");
