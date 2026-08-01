@@ -24,12 +24,25 @@ MINIMAL_FOOTPRINT_FLAGS = (
 )
 
 
+# Named window positions and their vertical share: the top margin is
+# (screen_height - window_height) // share. "center" leaves equal margins;
+# "dialog" leaves a smaller top margin so the window sits above center, roughly
+# where the OS places system dialogs.
+_NAMED_POSITIONS = {"center": 2, "dialog": 3}
+
+
 @dataclass(frozen=True)
 class Window:
     size: tuple[int, int] | None = None
-    # "center" centers on the main display; "dialog" centers horizontally but sits
-    # a third of the way down, where the OS places system dialogs.
+    # "center" centers on the main display; "dialog" sits above center (see
+    # _NAMED_POSITIONS). Explicit (x, y) coordinates are used verbatim.
     position: tuple[int, int] | Literal["center", "dialog"] | None = None
+
+    def __post_init__(self) -> None:
+        # Catch a bad named position at construction rather than as a KeyError
+        # deep in launch (the Literal type is not enforced at runtime).
+        if isinstance(self.position, str) and self.position not in _NAMED_POSITIONS:
+            raise ValueError(f"unknown window position {self.position!r}; use {sorted(_NAMED_POSITIONS)} or (x, y)")
 
 
 @dataclass
@@ -113,12 +126,6 @@ def _resolve_ua(binary: Path, spec: LaunchSpec) -> str | None:
         # Headed sessions send their real UA; only override for headless replay.
         return resolve_user_agent(binary, spec.profile) if spec.headless else None
     return spec.user_agent
-
-
-# Named window positions and how far down the screen they sit: the y offset is
-# (screen_height - window_height) // share. "center" is the middle; "dialog" a
-# third down, where the OS places system dialogs.
-_NAMED_POSITIONS = {"center": 2, "dialog": 3}
 
 
 def _window_flags(window: Window, screen: tuple[int, int] | None) -> list[str]:

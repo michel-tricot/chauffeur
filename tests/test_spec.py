@@ -1,5 +1,7 @@
 from pathlib import Path
 
+import pytest
+
 from chauffeur.spec import LaunchSpec, Window, build_args
 
 
@@ -53,6 +55,11 @@ def test_window_dialog_position_sits_above_center():
     spec = LaunchSpec(profile=Path("/tmp/p"), window=Window(size=(400, 300), position="dialog"))
     args = ba(Path("/bin/chrome"), spec, 9222, screen=(2000, 1000))
     assert "--window-position=800,233" in args  # x centered, y a third down
+
+
+def test_unknown_named_position_rejected():
+    with pytest.raises(ValueError, match="unknown window position"):
+        Window(size=(400, 300), position="middle")
 
 
 def test_window_named_position_dropped_without_screen():

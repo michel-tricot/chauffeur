@@ -83,6 +83,16 @@ def test_build_copies_and_patches(tmp_path):
     assert json.loads((built / "manifest.json").read_text())["name"] == "ext!"
 
 
+def test_build_strips_metadata_from_source(tmp_path):
+    # A source (e.g. a store cache from before the download-time strip) with a
+    # _metadata dir must not carry it into the build; Chrome refuses to load it.
+    src = _make_source(tmp_path)
+    (src / "_metadata").mkdir()
+    (src / "_metadata" / "verified_contents.json").write_text("{}")
+    built = build_extension(ExtensionSpec(src), tmp_path / "work")
+    assert not (built / "_metadata").exists()
+
+
 def test_rebuild_replaces_previous_build(tmp_path):
     src = _make_source(tmp_path)
     work = tmp_path / "work"

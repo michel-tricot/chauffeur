@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import io
 import json
+import logging
 import re
 import shutil
 import urllib.parse
@@ -22,6 +23,8 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from chauffeur.browsers import catalog
+
+log = logging.getLogger(__name__)
 
 # Chrome's CRX download endpoint. prodversion just has to look plausible; the
 # store does not gate downloads on an exact browser build.
@@ -76,6 +79,32 @@ def _unzip_crx(crx: bytes, dest: Path, extension_id: str) -> None:
         raise ExtensionNotFoundError(f"downloaded extension {extension_id} is not a valid CRX: {exc}") from exc
 
 
+def _strip_unloadable(root: Path) -> None:
+    """Remove what Chrome refuses to load in an unpacked extension: the store's _metadata dir."""
+    metadata = root / "_metadata"
+    if metadata.exists():
+        shutil.rmtree(metadata, ignore_errors=True)
+
+
+def _swap_in(staging: Path, dest: Path) -> None:
+    """Replace dest with staging, restoring the old dest if the rename fails.
+
+    So a launch that already had a working copy at dest never ends up with none.
+    """
+    backup = dest.with_name(dest.name + ".old")
+    shutil.rmtree(backup, ignore_errors=True)
+    had_dest = dest.exists()
+    if had_dest:
+        dest.rename(backup)
+    try:
+        staging.rename(dest)
+    except OSError:
+        if had_dest:
+            backup.rename(dest)  # put the old copy back
+        raise
+    shutil.rmtree(backup, ignore_errors=True)
+
+
 def download_extension(
     extension_id: str, dest: Path, *, prodversion: str = _STORE_PRODVERSION, timeout: float = 30.0
 ) -> Path:
@@ -107,19 +136,18 @@ def download_extension(
     # download (truncated CRX, no manifest) never destroys an existing copy at dest.
     dest = dest.expanduser()
     staging = dest.with_name(dest.name + ".downloading")
-    if staging.exists():
-        shutil.rmtree(staging)
-    staging.mkdir(parents=True)
     try:
+        shutil.rmtree(staging, ignore_errors=True)  # clear a leftover from a prior crash
+        staging.mkdir(parents=True)
         _unzip_crx(crx, staging, extension_id)
         if not (staging / "manifest.json").exists():
             raise ExtensionNotFoundError(f"downloaded extension {extension_id} has no manifest.json")
-        # Store CRXs ship a _metadata dir, and Chrome refuses to load an unpacked
-        # extension containing one; strip it so the download is loadable as-is.
-        shutil.rmtree(staging / "_metadata", ignore_errors=True)
-        if dest.exists():
-            shutil.rmtree(dest)
-        staging.rename(dest)
+        _strip_unloadable(staging)
+        _swap_in(staging, dest)
+    except OSError as exc:
+        # Wrap filesystem failures so callers (and the offline-cache fallback in
+        # StoreExtension.resolve) get the documented ExtensionNotFoundError.
+        raise ExtensionNotFoundError(f"could not unpack extension {extension_id}: {exc}") from exc
     finally:
         shutil.rmtree(staging, ignore_errors=True)
     return dest
@@ -166,7 +194,7 @@ class StoreExtension(ExtensionSource):
     extension_id: str
     prodversion: str = _STORE_PRODVERSION
     refresh: bool = False
-    timeout: float = 30.0  # bounds how long an offline resolve waits before the cache
+    timeout: float = 30.0  # per-download timeout (seconds) for the store fetch
 
     def key(self) -> str:
         return self.extension_id
@@ -178,10 +206,12 @@ class StoreExtension(ExtensionSource):
             return cached
         try:
             download_extension(self.extension_id, cached, prodversion=self.prodversion, timeout=self.timeout)
-        except ExtensionNotFoundError:
+        except ExtensionNotFoundError as exc:
             if not have_copy:
                 raise
-            # Refresh failed (offline, store hiccup): the cached copy keeps working.
+            # Refresh failed (offline, store hiccup, delisted): the cached copy
+            # keeps working, but surface why so a stale copy isn't a silent mystery.
+            log.warning("could not refresh extension %s, using cached copy: %s", self.extension_id, exc)
         return cached
 
 
@@ -331,6 +361,9 @@ def build_extension(spec: ExtensionSpec, workdir: Path, *, cache_dir: Path | Non
             raise ValueError(f"refusing to delete {workdir}: not a previous build (no manifest.json)")
         shutil.rmtree(workdir)
     shutil.copytree(source, workdir)
+    # Strip _metadata from any source (a store cache from before the download-time
+    # strip, or a local dir that happens to contain one) so the build always loads.
+    _strip_unloadable(workdir)
     for patch in spec.patches:
         patch(workdir)
     return workdir
