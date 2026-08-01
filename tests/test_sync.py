@@ -82,7 +82,7 @@ def test_serve_unblocks_on_connection_close(tmp_path):
         server = threading.Thread(target=sb.serve)
         server.start()
         time.sleep(0.1)
-        # window/connection gone — set the loop-owned event on the loop thread
+        # window/connection gone, set the loop-owned event on the loop thread
         sb._loop.call_soon_threadsafe(sb._async.cdp._closed.set)
         server.join(timeout=2)
         assert not server.is_alive()

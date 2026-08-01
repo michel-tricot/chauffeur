@@ -68,8 +68,8 @@ def _page_to_uri(page: Path | Traversable, stack: contextlib.ExitStack) -> str:
     """file:// URI for a local page; packaged resources are extracted first.
 
     A filesystem Path is used in place. Any other traversable (e.g. package
-    data inside a zip) is materialized with as_file — via its parent when it
-    exposes one, so sibling css/js come along — until the stack closes.
+    data inside a zip) is materialized with as_file, via its parent when it
+    exposes one, so sibling css/js come along, until the stack closes.
     """
     if isinstance(page, Path):
         page = page.expanduser()
@@ -123,7 +123,7 @@ def _materialize_extensions(spec: LaunchSpec) -> tuple[Path, ...]:
     """Build spec.extensions into <profile>.extensions/<key>, ready to load.
 
     The build dir is derived from the profile so one path anchors all of the
-    app's browser state — no second data-path to misconfigure. Rebuilding on
+    app's browser state, no second data-path to misconfigure. Rebuilding on
     every launch picks up bumped installed versions automatically.
     """
     built: list[Path] = []
@@ -155,7 +155,7 @@ def _warn_if_real_profile(profile: Path) -> None:
             continue
         if resolved.is_relative_to(browser.data_dir.expanduser().resolve()):
             log.warning(
-                "profile %s is inside %s's real user data dir — chauffeur will write to it",
+                "profile %s is inside %s's real user data dir, chauffeur will write to it",
                 profile,
                 browser.name,
             )
@@ -179,7 +179,7 @@ def _apply_ui_prefs(spec: LaunchSpec) -> None:
     if not isinstance(bar, dict):
         bar = prefs["bookmark_bar"] = {}
     if bar.get("show_on_all_tabs") == spec.show_browser_ui:
-        return  # already right — don't churn a file Chrome also owns
+        return  # already right, don't churn a file Chrome also owns
     bar["show_on_all_tabs"] = spec.show_browser_ui
     prefs_path.parent.mkdir(parents=True, exist_ok=True)
     prefs_path.write_text(json.dumps(prefs))

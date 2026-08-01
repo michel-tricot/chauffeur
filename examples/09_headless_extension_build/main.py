@@ -1,7 +1,7 @@
 """Patch a local extension, load it, and watch the injection change behavior.
 
 A tiny hello-world extension ships a page whose script greets whoever
-globalThis.__chauffeur_config says — defaulting to "stranger". We inject that
+globalThis.__chauffeur_config says, defaulting to "stranger". We inject that
 config at build time, so the extension's own code greets "chauffeur" instead,
 and it proves it ran by calling the Python `greet` command over the channel.
 
@@ -21,7 +21,7 @@ from chauffeur import Browser, ExtensionSpec, LaunchSpec
 
 MANIFEST = {"manifest_version": 3, "name": "chauffeur hello", "version": "1.0.0"}
 
-HELLO_HTML = '<!doctype html><meta charset="utf-8"><title>hello</title><h1 id="msg">…</h1><script src="hello.js"></script>'
+HELLO_HTML = '<!doctype html><meta charset="utf-8"><title>hello</title><h1 id="msg">...</h1><script src="hello.js"></script>'
 
 # The extension's own behavior: greet whoever the injected config names, and
 # prove it ran by calling back into Python.
@@ -62,7 +62,7 @@ async def main() -> None:
             await browser.navigate(f"chrome-extension://{ext_id}/hello.html")
             for _ in range(25):  # wait for the page script to call greet and render
                 msg = await browser.evaluate("document.querySelector('#msg')?.textContent")
-                if msg and msg != "…":
+                if msg and msg != "...":
                     break
                 await asyncio.sleep(0.2)
             print("[page]   shows:", msg)

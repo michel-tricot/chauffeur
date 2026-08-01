@@ -1,7 +1,7 @@
 """Python pushes live updates into the page, once a second.
 
 The visible direction of the channel: a Python loop calls
-browser.call("tick", {...}) and the page's handler updates the DOM — clock,
+browser.call("tick", {...}) and the page's handler updates the DOM, clock,
 load average, update counter, and a pulse on every beat. The page never
 polls; Python drives.
 
@@ -125,7 +125,7 @@ async def main() -> None:
 
         async with browser:
             await asyncio.wait_for(ready.wait(), timeout=15)
-            print("feeding the page — close the window to exit")
+            print("feeding the page, close the window to exit")
             feeder = asyncio.create_task(feed(browser))
             await browser.serve()
             feeder.cancel()

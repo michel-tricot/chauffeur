@@ -1,4 +1,4 @@
-"""The synchronous API — same capabilities, no async/await.
+"""The synchronous API, same capabilities, no async/await.
 
 SyncBrowser runs the async core on a background thread and blocks on each
 call. Registered @command handlers run on that loop thread. This is the sync
@@ -22,7 +22,7 @@ def main() -> None:
             return {"sum": params["a"] + params["b"]}
 
         with browser:
-            # Plain blocking calls — no await anywhere.
+            # Plain blocking calls, no await anywhere.
             print("user agent:", browser.evaluate("navigator.userAgent"))
             print("2 + 2 =", browser.evaluate("2 + 2"))
 

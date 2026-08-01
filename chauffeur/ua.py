@@ -4,8 +4,8 @@ Headless Chromium reports a ``HeadlessChrome/x.y`` User-Agent. Some origins
 (notably anything behind Cloudflare) reject it, and a session cookie such as
 ``cf_clearance`` earned in a headed login is bound to the *exact* UA that
 headed session sent. So the pattern is: capture the real UA during a headed
-login, cache it next to the profile, and replay it — with the Headless marker
-stripped — on later headless runs.
+login, cache it next to the profile, and replay it, with the Headless marker
+stripped, on later headless runs.
 
 Best-effort throughout: if nothing is cached, replay falls back to a
 per-platform reconstruction, so a missing capture never breaks a launch.

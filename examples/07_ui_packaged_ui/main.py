@@ -1,4 +1,4 @@
-"""Show a local page — HTML with separate CSS and JS — without a server.
+"""Show a local page, HTML with separate CSS and JS, without a server.
 
 LaunchSpec(app_page=...) (or page=... for a tab) takes an HTML file; sibling
 css/js load relatively over file://. A filesystem Path is used in place, and
@@ -8,11 +8,11 @@ extracted automatically for the browser's lifetime:
     LaunchSpec(profile=..., app_page=files("myapp") / "ui" / "app.html")
 
 With Browser, the page is navigated only after the py channel is installed,
-so its scripts can use py.on / py.notify from their first line — no polling.
+so its scripts can use py.on / py.notify from their first line, no polling.
 
 Headed: needs a desktop session. The UI starts as a native modal <dialog>
-(shown via showModal() at load); closing it — the button or the Esc key —
-shuts everything down.
+(shown via showModal() at load); closing it (the button or the Esc key) shuts
+everything down.
 
     uv run examples/07_ui_packaged_ui/main.py
 """
@@ -32,8 +32,8 @@ HTML = """<!doctype html>
 </head>
 <body>
   <dialog id="dlg">
-    <h1 id="status">booting…</h1>
-    <form method="dialog"><button>Done — close me</button></form>
+    <h1 id="status">booting...</h1>
+    <form method="dialog"><button>Close</button></form>
   </dialog>
 </body>
 </html>
@@ -104,7 +104,7 @@ async def main() -> None:
 
         @browser.command()
         def close_clicked() -> None:
-            print("dialog closed — shutting down")
+            print("dialog closed, shutting down")
             done.set()
 
         async with browser:

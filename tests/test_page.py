@@ -81,7 +81,7 @@ def test_deferred_page_starts_blank(tmp_path):
     with contextlib.ExitStack() as stack:
         resolved, deferred = _prepare_pages(spec, stack, defer_page=True)
         assert deferred == page.resolve().as_uri()
-        # A real file, not about:blank — Chrome ignores --app=about:blank and
+        # A real file, not about:blank, Chrome ignores --app=about:blank and
         # would open a tabbed window instead of an app window.
         assert resolved.app_url.startswith("file://")
         assert resolved.app_url.endswith("blank.html")

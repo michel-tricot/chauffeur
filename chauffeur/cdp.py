@@ -3,7 +3,7 @@
 One WebSocket to the browser endpoint; per-target sessions are multiplexed
 over it via Target.attachToTarget(flatten=True) + sessionId routing. Commands
 are id-matched request/response; unsolicited events fan out to registered
-listeners — that event stream is half of the bidirectional story.
+listeners, that event stream is half of the bidirectional story.
 """
 
 from __future__ import annotations

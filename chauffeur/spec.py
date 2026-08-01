@@ -34,7 +34,7 @@ class Window:
 class LaunchSpec:
     # Profile directory, required by design: with no default, a launch can
     # never silently land on a real browser's profile. Targeting one is
-    # allowed but must be spelled out — launch() logs a warning when it is.
+    # allowed but must be spelled out, launch() logs a warning when it is.
     profile: Path
     browser: str | Path = "auto"
     headless: bool = True
@@ -44,13 +44,13 @@ class LaunchSpec:
     # Local page to show without a server: an HTML file whose relative
     # css/js/image siblings load alongside it over file://. A filesystem Path
     # is used in place; an importlib.resources traversable (data packaged in
-    # a wheel/zip) is extracted — siblings included — for the browser's
+    # a wheel/zip) is extracted, siblings included, for the browser's
     # lifetime. With Browser, navigation happens after the py channel is
     # installed, so the page's scripts can use py.* immediately.
     page: Path | Traversable | None = None  # opens as a tab; conflicts with url
     app_page: Path | Traversable | None = None  # chromeless --app window; wins over page
     window: Window | None = None
-    # Extensions to load over CDP (Extensions.loadUnpacked) — branded Chrome
+    # Extensions to load over CDP (Extensions.loadUnpacked), branded Chrome
     # 137+ ignores --load-extension, so CDP is the only reliable path and
     # loading requires Browser (launch() alone has no CDP connection).
     # An ExtensionSpec is built on every launch into <profile>.extensions/<key>,

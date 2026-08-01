@@ -49,8 +49,8 @@ class Browser:
         self._session_id: str | None = None
         self._target_id: str | None = None
         # Set when the primary window/tab is closed. Chrome itself may keep
-        # running (macOS keeps the process alive with zero windows), so this —
-        # not the connection dropping — is the "user closed the app" signal.
+        # running (macOS keeps the process alive with zero windows), so this,
+        # not the connection dropping, is the "user closed the app" signal.
         self._page_closed = asyncio.Event()
 
     # -- decorator API -------------------------------------------------------
@@ -112,7 +112,7 @@ class Browser:
 
     async def start(self) -> Browser:
         # defer_page: a page/app_page starts on about:blank and is navigated
-        # below, after the channel exists — its scripts can use py right away.
+        # below, after the channel exists, its scripts can use py right away.
         self.handle = await asyncio.to_thread(launch, self._spec, defer_page=True)
         try:
             cdp = self.cdp = await CDPClient.connect(self.handle.port)
@@ -173,7 +173,7 @@ class Browser:
         cdp = self.cdp
         if cdp is None:  # shut down while the handler ran
             return
-        # Deliver into the context that called the binding — iframes and
+        # Deliver into the context that called the binding, iframes and
         # non-default contexts have their own py object with the pending promise.
         params: dict[str, Any] = {"expression": f"py._deliver({json.dumps(reply)})"}
         if context_id is not None:

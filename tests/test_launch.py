@@ -7,7 +7,7 @@ from chauffeur.launch import _apply_ui_prefs, _warn_if_real_profile
 from chauffeur.spec import LaunchSpec
 
 # The package re-exports the launch *function*, which shadows the
-# chauffeur.launch module attribute — go through sys.modules for the module.
+# chauffeur.launch module attribute, go through sys.modules for the module.
 launch_module = sys.modules["chauffeur.launch"]
 
 

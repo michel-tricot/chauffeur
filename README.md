@@ -2,41 +2,40 @@
 
 # 🚗 chauffeur
 
-**Drive a local Chromium browser from Python — your launch, your lifecycle, both directions.**
+**Drive a local Chromium browser from Python. Your launch, your lifecycle, both directions.**
 
 [![CI](https://github.com/michel-tricot/chauffeur/actions/workflows/ci.yml/badge.svg)](https://github.com/michel-tricot/chauffeur/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 ![Python 3.12+](https://img.shields.io/badge/python-3.12%2B-blue.svg)
 ![Platforms: macOS · Linux](https://img.shields.io/badge/platform-macOS%20%C2%B7%20Linux-lightgrey.svg)
-[![Ruff](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/astral-sh/ruff/main/assets/badge/v2.json)](https://github.com/astral-sh/ruff)
 
 </div>
 
-`chauffeur` is a **control plane, not an automation framework** — no selectors,
+`chauffeur` is a **control plane, not an automation framework**: no selectors,
 no waits, no daemon. You decide how the browser spins up, patch and load
 extensions, and talk to it in both directions with a decorator-based command
 API. Lifecycle is yours to own.
 
-Good for local-first desktop-style apps with a Chromium UI, browser-backed
-tooling, extension harnesses, and keeping your own logged-in session alive.
+Use it for local-first apps with a Chromium UI, browser-backed tooling,
+extension harnesses, or keeping your own logged-in session alive.
 
 ## Features
 
-- 🚀 **Launch your way** — headless or headed, chromeless app windows, any
-  installed Chromium (Chrome/Chromium/Brave/Edge), a dedicated profile with
+- 🚀 **Launch your way.** Headless or headed, chromeless app windows, any
+  installed Chromium (Chrome, Chromium, Brave, Edge). A dedicated profile with
   guardrails against clobbering your real one.
-- 🔌 **Bidirectional commands** — `py.call(...)` into Python and
+- 🔌 **Bidirectional commands.** `py.call(...)` into Python and
   `browser.call(...)` into JS over one JSON envelope, with dataclass
   validation and error replies that never hang.
-- 🧵 **Async or sync** — the async `Browser`, or a drop-in `SyncBrowser` with
-  no `async`/`await`.
-- 📄 **Local pages, no server** — show an HTML file (with its css/js) over
+- 🧵 **Async or sync.** The async `Browser`, or a drop-in `SyncBrowser` with no
+  `async`/`await`.
+- 📄 **Local pages, no server.** Show an HTML file (with its css/js) over
   `file://`, including UIs packaged inside a wheel.
-- 🧩 **Extension patching** — take a local dir or pull one from the Chrome Web
+- 🧩 **Extension patching.** Take a local dir or pull one from the Chrome Web
   Store, inject config, rewrite or add files, load over CDP.
-- 🕵️ **User-Agent capture/replay** — keep a `cf_clearance` cookie valid across
-  headless runs.
-- 🪶 **Tiny** — one runtime dependency (`websockets`), no daemon, no magic.
+- 🕵️ **User-Agent capture and replay.** Keep a `cf_clearance` cookie valid
+  across headless runs.
+- 🪶 **Tiny.** One runtime dependency (`websockets`), no daemon, no magic.
 
 ## Install
 
@@ -49,7 +48,7 @@ or Edge). macOS and Linux.
 
 ## Quickstart
 
-Register a Python command, then let the browser call it — that round trip is
+Register a Python command, then let the browser call it. That round trip is
 the whole point:
 
 ```python
@@ -92,13 +91,13 @@ spec = LaunchSpec(
 
 The profile is required on purpose: there is no default, so a launch can
 never silently land on the browser profile you use daily. Pointing it at a
-real user data dir works, but is deliberate — and logged with a warning,
-since chauffeur opens a debugging port on it and rewrites its Preferences.
+real user data dir works but must be deliberate, and it logs a warning, since
+chauffeur opens a debugging port on it and rewrites its Preferences.
 
-Headed windows start clean by default — no bookmarks bar or startup clutter —
-so a window reads as an app or dialog rather than a browser; pass
-`show_browser_ui=True` for Chrome's normal browsing UI. For a fully chromeless
-window, use `app_url` / `app_page`.
+Headed windows start clean by default, with no bookmarks bar or startup
+clutter, so a window reads as an app or dialog rather than a browser. Pass
+`show_browser_ui=True` for Chrome's normal browsing UI, or use `app_url` /
+`app_page` for a fully chromeless window.
 
 ## Talk to the browser both ways
 
@@ -144,10 +143,10 @@ async def main():
 ```
 
 Prefer no `async`/`await`? `SyncBrowser` is a drop-in synchronous facade over
-the same core (it runs the event loop on a background thread); every method
-loses its `a`-prefix — `browser.evaluate(...)`, `browser.call(...)`,
-`browser.serve()` — and `@command`/`@on` handlers still work (they run on the
-loop thread, so keep them quick).
+the same core (it runs the event loop on a background thread). Every method
+loses its `a`-prefix (`browser.evaluate(...)`, `browser.call(...)`,
+`browser.serve()`), and `@command`/`@on` handlers still work. They run on the
+loop thread, so keep them quick.
 
 Browser side (injected `py` global is available in every document):
 
@@ -163,7 +162,7 @@ payload. Dataclass return values are serialized back automatically. Unknown
 commands, bad params, and handler exceptions always produce an error reply so a
 `await py.call(...)` never hangs.
 
-## Show a local page — no server
+## Show a local page, no server
 
 Point the browser at an HTML file; its relative css/js/images load over
 file://. `app_page` opens it as a chromeless app window, `page` as a tab:
@@ -172,7 +171,7 @@ file://. `app_page` opens it as a chromeless app window, `page` as a tab:
 spec = LaunchSpec(profile=..., headless=False, app_page=Path("ui/app.html"))
 ```
 
-Packaged UIs work the same — pass an importlib.resources traversable and
+Packaged UIs work the same way: pass an importlib.resources traversable and
 chauffeur extracts it (siblings included) for the browser's lifetime, even
 from a zipped install:
 
@@ -187,12 +186,11 @@ so its scripts can call `py.on(...)` / `py.notify(...)` from their first line.
 
 ## Patch and load an extension
 
-The source is a local unpacked directory or an id pulled from the Chrome Web
-Store; both take the same patches:
-
-An `ExtensionSpec` describes the source and the patches; you hand it to
-`LaunchSpec.extensions` and the launch builds it for you (call
-`build_extension(spec, workdir)` yourself only if you want the dir directly).
+An `ExtensionSpec` describes a source and the patches to apply. The source is
+a local unpacked directory or an id pulled from the Chrome Web Store; both
+take the same patches. Hand the spec to `LaunchSpec.extensions` and the launch
+builds it for you (call `build_extension(spec, workdir)` yourself only if you
+want the dir directly).
 
 ```python
 from chauffeur import ExtensionSpec, find_installed_extension
@@ -205,7 +203,7 @@ ext = ExtensionSpec.from_store("pejdijmoenmkgeppbflobdenhhabjlaj")
 
 ext = (
     ext
-    .inject_config("background.js", {"port": 8765, "token": "…"})  # prepend a config global
+    .inject_config("background.js", {"port": 8765, "token": "..."})  # prepend a config global
     .append("background.js", bridge_js)                            # modify an existing file
     .add_file("content/inject.js", inject_js)                      # add a new file
     .patch_manifest(lambda m: {**m, "name": m["name"] + " (patched)"})
@@ -213,12 +211,12 @@ ext = (
 spec = LaunchSpec(profile=..., extensions=(ext,))
 ```
 
-The build lands beside the profile (`<profile>.extensions/<name>`) — one
-path anchors all of the app's browser state, nothing to configure twice —
-and is rebuilt on every launch, so a bumped installed version is picked up
+The build lands beside the profile (`<profile>.extensions/<name>`), so one
+path anchors all of the app's browser state with nothing to configure twice,
+and it is rebuilt on every launch so a bumped installed version is picked up
 automatically. Loading happens over CDP (`Extensions.loadUnpacked`, ids on
 `browser.extension_ids`) because branded Chrome 137+ silently ignores
-`--load-extension`; this means extensions load when driving the browser
+`--load-extension`. Extensions therefore load when driving the browser
 through `Browser`, not bare `launch()`.
 
 ## Replay a captured User-Agent (Cloudflare)
@@ -228,27 +226,27 @@ Headless Chromium sends a `HeadlessChrome/x.y` UA that Cloudflare rejects, and a
 session sent. Capture the real UA during login, then replay it on headless runs:
 
 ```python
-# 1. Headed login — capture the real UA once the user is signed in.
+# 1. Headed login: capture the real UA once the user is signed in.
 login = LaunchSpec(profile=profile, headless=False, app_url="https://example.com/login")
 async with Browser(login) as browser:
     await wait_until_signed_in(browser)
     await browser.capture_user_agent()      # writes <profile>.ua
 
-# 2. Headless runs — replay it automatically.
+# 2. Headless runs: replay it automatically.
 work = LaunchSpec(profile=profile, headless=True, user_agent="auto")
 async with Browser(work) as browser:
     ...                                      # same profile, same UA, cookie stays valid
 ```
 
 `user_agent="auto"` replays the cached UA (Headless marker stripped) on headless
-launches only — headed browsers send their real UA. Pass an explicit string to
+launches only; headed browsers send their real UA. Pass an explicit string to
 force one verbatim, or leave it `None` (default) to not touch the UA at all. If
 nothing was captured, replay falls back to a per-platform reconstruction, so a
 missing capture never breaks a launch.
 
 ## Examples
 
-Runnable, self-contained scripts live in [`examples/`](examples/) — from a
+Runnable, self-contained scripts live in [`examples/`](examples/), from a
 one-liner launch to a live-updating packaged UI and Web Store extension
 patching. Run any with `uv run examples/<name>/main.py`.
 

@@ -72,7 +72,7 @@ async def main() -> None:
             print("button clicked, count =", params["count"])
 
         async with browser:
-            print("window is up — click the button, close the window to exit")
+            print("window is up, click the button, close the window to exit")
             await browser.serve()
 
 

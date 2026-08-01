@@ -3,7 +3,7 @@
 ExtensionSpec.from_store(id) downloads the CRX by id (cached in
 <profile>.extensions/<id>.src). A downloaded extension's own filenames aren't
 known up front, so we add_file our own page + script, inject config into it,
-and let it prove it ran by calling the Python `greet` command — the same
+and let it prove it ran by calling the Python `greet` command, the same
 build+load path as the local example, on a real store extension.
 
 Needs network (reaches the Chrome Web Store). Extension: JSON Formatter (a
@@ -20,7 +20,7 @@ from chauffeur import Browser, ExtensionSpec, LaunchSpec
 
 EXTENSION_ID = "bcjindcccaagfpapjjmafapmmgkkhgoa"  # JSON Formatter (small, MV3)
 
-HELLO_HTML = '<!doctype html><meta charset="utf-8"><title>hello</title><h1 id="msg">…</h1><script src="chauffeur_hello.js"></script>'
+HELLO_HTML = '<!doctype html><meta charset="utf-8"><title>hello</title><h1 id="msg">...</h1><script src="chauffeur_hello.js"></script>'
 
 HELLO_JS = """const name = globalThis.__chauffeur_config?.name ?? "stranger";
 (async () => {
@@ -52,7 +52,7 @@ async def main() -> None:
             await browser.navigate(f"chrome-extension://{ext_id}/chauffeur_hello.html")
             for _ in range(25):  # wait for the added page to call greet and render
                 msg = await browser.evaluate("document.querySelector('#msg')?.textContent")
-                if msg and msg != "…":
+                if msg and msg != "...":
                     break
                 await asyncio.sleep(0.2)
             print("[page]   shows:", msg)

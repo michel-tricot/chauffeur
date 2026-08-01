@@ -10,7 +10,7 @@ when you don't want to write async code.
         browser.serve()
 
 Note: registered @command / @on handlers run on the background loop thread,
-not the caller's — keep them quick and don't block the loop.
+not the caller's, keep them quick and don't block the loop.
 """
 
 from __future__ import annotations

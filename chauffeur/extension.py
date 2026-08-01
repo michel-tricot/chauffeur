@@ -1,7 +1,7 @@
 """Get, patch, and build Chromium extensions before loading them.
 
-An ExtensionSpec describes a source — a local unpacked directory or an id
-pulled from the Chrome Web Store (downloaded as a CRX and unzipped) — plus
+An ExtensionSpec describes a source, a local unpacked directory or an id
+pulled from the Chrome Web Store (downloaded as a CRX and unzipped), plus
 patches (inject config, append or rewrite existing files, add new files, edit
 the manifest). build_extension() materializes it: copy to a working dir,
 apply patches, hand the path to Extensions.loadUnpacked over CDP (usually via
@@ -123,7 +123,7 @@ class LocalExtension(ExtensionSource):
     def key(self) -> str:
         return _slug(_manifest_name(self.path.expanduser()))
 
-    def resolve(self, cache_dir: Path) -> Path:  # noqa: ARG002 — local sources ignore the cache
+    def resolve(self, cache_dir: Path) -> Path:  # noqa: ARG002, local sources ignore the cache
         path = self.path.expanduser().resolve()
         if not (path / "manifest.json").exists():
             raise ExtensionNotFoundError(f"no manifest.json under {path}")
@@ -175,7 +175,7 @@ def find_installed_extension(extension_id: str, *, must_contain: str = "manifest
 def extensions_dir(profile: Path) -> Path:
     """Where derived extension builds live: ``<profile>.extensions`` beside it.
 
-    Same family as the ``<profile>.ua`` sidecar — one profile path anchors
+    Same family as the ``<profile>.ua`` sidecar, one profile path anchors
     all of chauffeur's per-app state.
     """
     profile = profile.expanduser()
@@ -187,11 +187,11 @@ class ExtensionSpec:
 
     The source is a local unpacked directory (pass a Path) or an id pulled
     from the Chrome Web Store (:meth:`from_store`). The chained methods only
-    record patches; nothing touches disk until :func:`build_extension` runs —
+    record patches; nothing touches disk until :func:`build_extension` runs,
     usually for you, when the spec is handed to ``LaunchSpec.extensions`` and
     built beside the profile on every launch, keyed by :attr:`key`.
 
-    (It carries closures, so it describes rather than serializes — "spec" here
+    (It carries closures, so it describes rather than serializes, "spec" here
     means declare-vs-execute, not JSON-able config.)
     """
 

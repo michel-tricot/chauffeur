@@ -2,7 +2,7 @@
 
 Handlers are registered with @registry.command(...); the transport (channel)
 feeds incoming envelopes to dispatch() and sends the returned reply back if
-the message carried an id. Handler exceptions become error replies — a JS
+the message carried an id. Handler exceptions become error replies, a JS
 `await py.call(...)` must always resolve or reject, never hang.
 """
 
