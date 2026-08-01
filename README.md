@@ -2,7 +2,7 @@
 
 # 🚗 chauffeur
 
-**Drive a local Chromium browser from Python. Your launch, your lifecycle, both directions.**
+**A Python control plane for a local Chromium browser you launch and own.**
 
 [![CI](https://github.com/michel-tricot/chauffeur/actions/workflows/ci.yml/badge.svg)](https://github.com/michel-tricot/chauffeur/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
@@ -14,7 +14,7 @@
 `chauffeur` is a **control plane, not an automation framework**: no selectors,
 no waits, no daemon. You decide how the browser spins up, patch and load
 extensions, and talk to it in both directions with a decorator-based command
-API. Lifecycle is yours to own.
+API. Starting and stopping the browser is your job, not the library's.
 
 Use it for local-first apps with a Chromium UI, browser-backed tooling,
 extension harnesses, or keeping your own logged-in session alive.
@@ -35,7 +35,7 @@ extension harnesses, or keeping your own logged-in session alive.
   Store, inject config, rewrite or add files, load over CDP.
 - 🕵️ **User-Agent capture and replay.** Keep a `cf_clearance` cookie valid
   across headless runs.
-- 🪶 **Tiny.** One runtime dependency (`websockets`), no daemon, no magic.
+- 🪶 **Tiny.** One runtime dependency (`websockets`) and no daemon.
 
 ## Install
 
@@ -48,8 +48,7 @@ or Edge). macOS and Linux.
 
 ## Quickstart
 
-Register a Python command, then let the browser call it. That round trip is
-the whole point:
+Register a Python command, then have the browser call it and get a reply:
 
 ```python
 import asyncio
