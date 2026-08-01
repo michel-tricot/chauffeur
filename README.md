@@ -86,7 +86,7 @@ spec = LaunchSpec(
     devtools_port=0,                    # 0 = pick a free port
     window=Window(size=(390, 320), position="center"),
     minimal_footprint=True,             # trim the process down
-    show_browser_ui=False,              # headed windows start clean (default)
+    show_browser_ui=False,              # present as an app/dialog, not a browser
 )
 ```
 
@@ -95,10 +95,10 @@ never silently land on the browser profile you use daily. Pointing it at a
 real user data dir works, but is deliberate — and logged with a warning,
 since chauffeur opens a debugging port on it and rewrites its Preferences.
 
-Headed windows start without the bookmarks bar and open about:blank instead
-of the New Tab Page; pass `show_browser_ui=True` to restore Chrome's regular
-UI. Tabbed windows always keep the toolbar — `app_url` / `app_page` open a
-toolbar-less window.
+Headed windows start clean by default — no bookmarks bar or startup clutter —
+so a window reads as an app or dialog rather than a browser; pass
+`show_browser_ui=True` for Chrome's normal browsing UI. For a fully chromeless
+window, use `app_url` / `app_page`.
 
 ## Talk to the browser both ways
 
