@@ -26,6 +26,24 @@ All three checks must pass before a change is done. CI
 Python 3.12 to 3.14; unit tests never need a browser, so they pass on bare
 runners.
 
+## Releasing
+
+`.github/workflows/release.yml` publishes to PyPI when a GitHub Release is
+published, using PyPI Trusted Publishing (OIDC) so no API token is stored.
+
+One-time setup on PyPI: add a trusted publisher for the project (owner
+`michel-tricot`, repo `chauffeur`, workflow `release.yml`, environment
+`pypi`). For the very first upload, create a "pending publisher" since the
+project does not exist on PyPI yet.
+
+To cut a release:
+
+1. Bump `version` in `pyproject.toml` and commit (the workflow fails if the
+   release tag does not match this version).
+2. Create a GitHub Release with tag `vX.Y.Z` (matching the version).
+3. The workflow builds the sdist and wheel (`uv build`) and publishes them
+   (`uv publish --trusted-publishing always`).
+
 ## Architecture notes
 
 - `browser.py` is the facade: launches via `launch.py`, connects `cdp.py`,

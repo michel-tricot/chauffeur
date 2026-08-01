@@ -305,8 +305,8 @@ uv run mkdocs serve      # live preview at http://127.0.0.1:8000
 
 If you change public API, usage, or the pitch, update the README and the
 matching page under `docs/` in the same PR; the API reference is generated
-from docstrings. See [`AGENTS.md`](AGENTS.md) for architecture notes and
-conventions.
+from docstrings. See [`AGENTS.md`](AGENTS.md) for architecture notes,
+conventions, and the release process.
 
 ## License
 
