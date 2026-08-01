@@ -47,28 +47,36 @@ class SyncBrowser:
     # -- python -> browser ---------------------------------------------------
 
     def call(self, command: str, params: Any = None, *, timeout: float = 30.0) -> Any:
+        """Invoke a JS handler registered via py_chauffeur.on(command, ...) in the primary page."""
         return self._run(self._async.call(command, params, timeout=timeout), timeout + 5)
 
     def evaluate(self, expression: str, *, await_promise: bool = True, timeout: float = 30.0) -> Any:
+        """Run arbitrary JS in the primary session and return its value."""
         return self._run(self._async.evaluate(expression, await_promise=await_promise, timeout=timeout), timeout + 5)
 
     def navigate(self, url: str, *, wait: Literal["load"] | None = None, timeout: float = 30.0) -> None:
+        """Navigate the primary target; wait="load" blocks until the destination loads."""
         self._run(self._async.navigate(url, wait=wait, timeout=timeout), timeout + 5)
 
     def capture_user_agent(self) -> str | None:
+        """Persist this browser's real UA next to the profile for later replay."""
         return self._run(self._async.capture_user_agent())
 
     @property
     def handle(self) -> BrowserHandle | None:
+        """The launched process (port, terminate()); None until start()."""
         return self._async.handle
 
     @property
     def extension_ids(self) -> list[str]:
+        """Ids of the loaded extensions, in LaunchSpec.extensions order."""
         return self._async.extension_ids
 
     # -- lifecycle -----------------------------------------------------------
 
     def start(self) -> SyncBrowser:
+        """Start the background event loop and launch the browser; returns self.
+        ``with`` calls this."""
         self._thread.start()
         try:
             self._run(self._async.start())
@@ -99,6 +107,7 @@ class SyncBrowser:
                 watcher.join()
 
     def close(self) -> None:
+        """Shut the browser down and stop the background loop; safe to call twice."""
         if not self._thread.is_alive():
             return
         try:

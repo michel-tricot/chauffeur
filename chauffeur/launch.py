@@ -194,8 +194,11 @@ def _apply_ui_prefs(spec: LaunchSpec) -> None:
 @dataclass
 class BrowserHandle:
     proc: subprocess.Popen
+    """The browser process."""
     port: int
+    """The DevTools (CDP) port the browser listens on."""
     binary: Path
+    """The browser binary that was launched."""
     # Resources that must outlive the process (extracted page dirs); closed by
     # terminate().
     _cleanup: contextlib.ExitStack | None = None
@@ -205,14 +208,17 @@ class BrowserHandle:
     # The unique blank URI the primary tab launched on when deferral is active;
     # identifies that tab among session-restored ones.
     _primary_url: str | None = None
-    # Built extension dirs, ready for Extensions.loadUnpacked over CDP.
     extensions: tuple[Path, ...] = ()
+    """Built extension dirs, ready for Extensions.loadUnpacked over CDP."""
 
     @property
     def running(self) -> bool:
+        """Whether the browser process is still alive."""
         return self.proc.poll() is None
 
     def terminate(self, timeout: float = 5.0) -> None:
+        """Stop the process (SIGTERM, then SIGKILL after ``timeout``) and
+        release launch-scoped resources such as extracted packaged pages."""
         try:
             if self.running:
                 self.proc.terminate()

@@ -50,10 +50,13 @@ class Caller:
     """Who invoked the currently-running @command handler."""
 
     session_id: str
-    extension_id: str | None = None  # None for the primary page
+    """The CDP session the call arrived on."""
+    extension_id: str | None = None
+    """The calling extension's id; None for the primary page."""
 
     @property
     def is_extension(self) -> bool:
+        """Whether an extension service worker (not the primary page) called."""
         return self.extension_id is not None
 
 
@@ -80,8 +83,11 @@ class Browser:
         self._registry = CommandRegistry()
         self._cdp_listeners: list[tuple[str, Callable]] = []
         self.handle: BrowserHandle | None = None
+        """The launched process (port, terminate()); None until start()."""
         self.cdp: CDPClient | None = None
+        """The raw CDP client, for anything the facade doesn't cover; None until start()."""
         self.extension_ids: list[str] = []
+        """Ids of the loaded extensions, in LaunchSpec.extensions order."""
         self._session_id: str | None = None
         self._target_id: str | None = None
         # extension_id -> attached service-worker session id, filled by
@@ -194,6 +200,8 @@ class Browser:
     # -- lifecycle -----------------------------------------------------------
 
     async def start(self) -> Browser:
+        """Launch the browser, connect over CDP, load extensions, and install
+        the py_chauffeur channel; returns self. ``async with`` calls this."""
         # _defer_page: the destination (spec.url) starts on a unique blank page
         # and is navigated below, after the channel exists — page scripts can use
         # py_chauffeur right away, and the blank page identifies the launch tab
@@ -387,6 +395,8 @@ class Browser:
         return "connection-lost"
 
     async def aclose(self) -> None:
+        """Shut the browser down: orderly Browser.close (flushes profile
+        state), then terminate the process and drop the CDP connection."""
         try:
             if self.cdp is not None:
                 # Ask the browser to exit orderly first: Browser.close flushes
@@ -450,7 +460,9 @@ class ExtensionChannel:
         self._session_id = session_id
 
     async def evaluate(self, expression: str, *, await_promise: bool = True, timeout: float = 30.0) -> Any:
+        """Run arbitrary JS in the worker and return its value."""
         return await self._browser._evaluate(self._session_id, expression, await_promise=await_promise, timeout=timeout)
 
     async def call(self, command: str, params: Any = None, *, timeout: float = 30.0) -> Any:
+        """Invoke a JS handler the worker registered via py_chauffeur.on(command, ...)."""
         return await self._browser._call(self._session_id, command, params, timeout=timeout)

@@ -13,12 +13,7 @@ directions with a decorator-based command API.
 from chauffeur.browser import Browser, Caller, ExtensionChannel, JSError, ServeReason, caller
 from chauffeur.browsers import BrowserInfo, BrowserNotFoundError, installed_browsers, resolve_browser
 from chauffeur.cdp import CDPClient, CDPError
-from chauffeur.extension import (
-    ExtensionNotFoundError,
-    ExtensionSpec,
-    build_extension,
-    find_installed_extension,
-)
+from chauffeur.extension import ExtensionNotFoundError, ExtensionSpec, build_extension
 from chauffeur.launch import BrowserHandle, LaunchError, launch
 from chauffeur.profiles import close_running_browser, wipe_profile
 from chauffeur.serde import SchemaError, SerdeError
@@ -47,7 +42,6 @@ __all__ = [
     "build_extension",
     "caller",
     "close_running_browser",
-    "find_installed_extension",
     "installed_browsers",
     "launch",
     "resolve_browser",

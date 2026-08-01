@@ -138,10 +138,10 @@ it for you (call `build_extension(spec, workdir)` yourself only if you want the
 dir directly).
 
 ```python
-from chauffeur import ExtensionSpec, find_installed_extension
+from chauffeur import ExtensionSpec
 
-# local: an unpacked dir, or a copy from an installed browser
-ext = ExtensionSpec(find_installed_extension("pejdijmoenmkgeppbflobdenhhabjlaj"))
+# local: any unpacked extension directory (packaged with your app or on disk)
+ext = ExtensionSpec("path/to/unpacked-extension")
 
 # or pull it from the Web Store by id (downloaded once, cached). refresh=True
 # re-downloads on each launch and keeps the cache when the store is unreachable;

@@ -34,10 +34,11 @@ _NAMED_POSITIONS = {"top": 0.0, "dialog": 1 / 3, "center": 0.5}
 @dataclass(frozen=True)
 class Window:
     size: tuple[int, int] | None = None
-    # "top" pins to the top of the main display, "center" centers, "dialog" sits
-    # above center (see _NAMED_POSITIONS); all center horizontally. Explicit
-    # (x, y) coordinates are used verbatim.
+    """Window size in pixels; None leaves the browser default."""
     position: tuple[int, int] | Literal["top", "center", "dialog"] | None = None
+    """"top" pins to the top of the main display, "center" centers, "dialog"
+    sits above center; all center horizontally. Explicit (x, y) coordinates
+    are used verbatim."""
 
     def __post_init__(self) -> None:
         # Catch a bad named position at construction rather than as a KeyError
@@ -48,42 +49,49 @@ class Window:
 
 @dataclass
 class LaunchSpec:
-    # Profile directory, required by design: with no default, a launch can
-    # never silently land on a real browser's profile. Targeting one is
-    # allowed but must be spelled out, launch() logs a warning when it is.
     profile: Path
+    """Profile directory, required by design: with no default, a launch can
+    never silently land on a real browser's profile. Targeting one is allowed
+    but must be spelled out; launch() logs a warning when it is."""
     browser: str | Path = "auto"
+    """"auto" (first installed browser), a browser id/name ("chrome",
+    "chromium", "brave", "edge"), or an explicit binary Path."""
     headless: bool = True
-    devtools_port: int = 0  # 0 = pick a free port at launch
-    # Where to point the browser. A str is any URL used verbatim (file://,
-    # http(s)://, chrome://, data:, ...); a Path or importlib.resources
-    # traversable is a local page resolved to file:// (packaged/zipped resources
-    # are extracted with their sibling css/js for the browser's lifetime). With
-    # Browser, navigation happens after the py_chauffeur channel is installed, so
-    # the page's scripts can use py_chauffeur.* from their first line.
+    """Run without a visible window (--headless=new)."""
+    devtools_port: int = 0
+    """0 picks a free port at launch."""
     url: str | Path | Traversable | None = None
-    # Open the destination as a chromeless app window (the default); set False
-    # for a normal browser tab. No effect when url is None.
+    """Where to point the browser. A str is any URL used verbatim (file://,
+    http(s)://, chrome://, data:, ...); a Path or importlib.resources
+    traversable is a local page resolved to file:// (packaged/zipped resources
+    are extracted with their sibling css/js for the browser's lifetime). With
+    Browser, navigation happens after the py_chauffeur channel is installed, so
+    the page's scripts can use py_chauffeur.* from their first line."""
     app: bool = True
+    """Open the destination as a chromeless app window (the default); set
+    False for a normal browser tab. No effect when url is None."""
     window: Window | None = None
-    # Extensions to load over CDP (Extensions.loadUnpacked), branded Chrome
-    # 137+ ignores --load-extension, so CDP is the only reliable path and
-    # loading requires Browser (launch() alone has no CDP connection).
-    # An ExtensionSpec is built on every launch into <profile>.extensions/<key>,
-    # so a bumped installed version is picked up automatically; a plain Path
-    # loads a pre-built directory as-is.
     extensions: tuple[ExtensionSpec | Path, ...] = ()
+    """Extensions to load over CDP (Extensions.loadUnpacked); branded Chrome
+    137+ ignores --load-extension, so CDP is the only reliable path and
+    loading requires Browser (launch() alone has no CDP connection).
+    An ExtensionSpec is built on every launch into <profile>.extensions/<key>,
+    so a bumped source version is picked up automatically; a plain Path loads
+    a pre-built directory as-is."""
     minimal_footprint: bool = True
-    # Headed windows start clean by default (no bookmarks bar or startup
-    # clutter), so a window can be presented as an app or dialog rather than a
-    # browser; set True to show Chrome's normal browsing UI. Ignored when
-    # headless. For a fully chromeless window, use app=True.
+    """Trim the process footprint (no GPU, background networking, sync, ...)
+    and keep background pages/service workers responsive when headless."""
     show_browser_ui: bool = False
-    # UA to present. An explicit string is used verbatim (headed or headless).
-    # "auto" replays the captured UA on headless runs only (headed browsers
-    # send their real UA); None leaves the browser default untouched.
+    """Headed windows start clean by default (no bookmarks bar or startup
+    clutter), so a window can be presented as an app or dialog rather than a
+    browser; set True to show Chrome's normal browsing UI. Ignored when
+    headless. For a fully chromeless window, use app=True."""
     user_agent: str | Literal["auto"] | None = None
+    """UA to present. An explicit string is used verbatim (headed or headless).
+    "auto" replays the captured UA on headless runs only (headed browsers send
+    their real UA); None leaves the browser default untouched."""
     extra_flags: tuple[str, ...] = ()
+    """Additional command-line flags, appended verbatim."""
 
 
 def build_args(binary: Path, spec: LaunchSpec, port: int, *, screen: tuple[int, int] | None = None) -> list[str]:

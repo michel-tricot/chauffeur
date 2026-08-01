@@ -28,7 +28,6 @@ the source.
 
 ::: chauffeur.ExtensionSpec
 ::: chauffeur.build_extension
-::: chauffeur.find_installed_extension
 
 ## Low-level CDP
 

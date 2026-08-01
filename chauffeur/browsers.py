@@ -15,11 +15,14 @@ class BrowserNotFoundError(RuntimeError):
 @dataclass(frozen=True)
 class BrowserInfo:
     id: str
+    """Stable selector id: "chrome", "chromium", "brave", or "edge"."""
     name: str
+    """Human-readable browser name."""
     binary: Path
-    # Default user-data dir of the *installed* browser, used to discover
-    # already-installed extensions. None for custom binaries.
+    """The browser executable."""
     data_dir: Path | None
+    """Default user-data dir of the *installed* browser, used to warn when a
+    launch targets a real profile. None for custom binaries."""
 
 
 def _macos_catalog() -> tuple[BrowserInfo, ...]:

@@ -57,6 +57,7 @@ class CDPClient:
 
     @classmethod
     async def connect(cls, port: int, *, timeout: float = 15.0) -> CDPClient:
+        """Connect to the browser's DevTools endpoint on ``port``."""
         url = await _debugger_url(port, timeout)
         ws = await ws_connect(url, max_size=64 * 1024 * 1024)
         return cls(ws)
@@ -69,6 +70,8 @@ class CDPClient:
         session_id: str | None = None,
         timeout: float = 30.0,
     ) -> dict:
+        """Send a CDP command and return its result; raises CDPError when the
+        browser rejects it. session_id routes to an attached target's session."""
         self._next_id += 1
         msg_id = self._next_id
         msg: dict[str, Any] = {"id": msg_id, "method": method, "params": params or {}}
@@ -148,26 +151,32 @@ class CDPClient:
     # -- target helpers ------------------------------------------------------
 
     async def targets(self) -> list[dict]:
+        """The browser's current targets (pages, workers, ...) as raw dicts."""
         result = await self.send("Target.getTargets")
         return result.get("targetInfos", [])
 
     async def create_target(self, url: str = "about:blank") -> str:
+        """Open a new page target at ``url``; returns its target id."""
         result = await self.send("Target.createTarget", {"url": url})
         return result["targetId"]
 
     async def attach(self, target_id: str) -> str:
+        """Attach to a target (flattened session); returns the session id for send()."""
         result = await self.send("Target.attachToTarget", {"targetId": target_id, "flatten": True})
         return result["sessionId"]
 
     async def close_target(self, target_id: str) -> None:
+        """Close a target (page, tab, ...)."""
         await self.send("Target.closeTarget", {"targetId": target_id})
 
     # -- lifecycle -----------------------------------------------------------
 
     async def wait_closed(self) -> None:
+        """Block until the connection to the browser is gone."""
         await self._closed.wait()
 
     async def close(self) -> None:
+        """Close the WebSocket; pending commands fail with CDPError."""
         await self._ws.close()
         with contextlib.suppress(Exception):
             await self._reader

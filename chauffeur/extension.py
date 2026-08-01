@@ -23,8 +23,6 @@ from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
 
-from chauffeur.browsers import catalog
-
 log = logging.getLogger(__name__)
 
 # Chrome's CRX download endpoint. prodversion just has to look plausible; the
@@ -38,7 +36,7 @@ _CRX2, _CRX3 = 2, 3  # CRX header format versions
 
 
 class ExtensionNotFoundError(RuntimeError):
-    """No usable extension for the id: not installed, not on the store, or a bad download."""
+    """No usable extension for the source: a missing local dir, an id not on the store, or a bad download."""
 
 
 def _slug(name: str) -> str:
@@ -172,7 +170,7 @@ class ExtensionSource:
 
 @dataclass(frozen=True)
 class LocalExtension(ExtensionSource):
-    """An unpacked extension already on disk (e.g. find_installed_extension)."""
+    """An unpacked extension already on disk."""
 
     path: Path
 
@@ -225,31 +223,6 @@ class StoreExtension(ExtensionSource):
         return cached
 
 
-def _version_key(name: str) -> tuple[int, ...]:
-    parts = []
-    for chunk in name.split("."):
-        digits = "".join(c for c in chunk if c.isdigit())
-        parts.append(int(digits) if digits else 0)
-    return tuple(parts)
-
-
-def find_installed_extension(extension_id: str, *, must_contain: str = "manifest.json") -> Path:
-    """Highest-version copy of an extension across all installed browser profiles."""
-    best: tuple[tuple[int, ...], Path] | None = None
-    for browser in catalog():
-        if not browser.data_dir or not browser.data_dir.exists():
-            continue
-        for ext_dir in browser.data_dir.glob(f"*/Extensions/{extension_id}/*"):
-            if not (ext_dir / must_contain).exists():
-                continue
-            key = _version_key(ext_dir.name)
-            if best is None or key > best[0]:
-                best = (key, ext_dir)
-    if best is None:
-        raise ExtensionNotFoundError(f"extension {extension_id} not found in any installed browser")
-    return best[1]
-
-
 def extensions_dir(profile: Path) -> Path:
     """Where derived extension builds live: ``<profile>.extensions`` beside it.
 
@@ -275,11 +248,12 @@ class ExtensionSpec:
 
     def __init__(self, source: Path | str | ExtensionSource, *, worker_channel: bool = True) -> None:
         self.source: ExtensionSource = source if isinstance(source, ExtensionSource) else LocalExtension(Path(source))
+        """Where the extension comes from: a local unpacked dir or the store."""
         self._patches: list[Callable[[Path], None]] = []
-        # When driven by Browser, auto-attach a py_chauffeur channel into this
-        # extension's service worker (so its code can call/handle commands and
-        # browser.extension(id) works). False loads it without a channel.
         self.worker_channel = worker_channel
+        """When driven by Browser, auto-attach a py_chauffeur channel into this
+        extension's service worker (so its code can call/handle commands and
+        browser.extension(id) works). False loads it without a channel."""
 
     @classmethod
     def from_store(
@@ -327,6 +301,8 @@ class ExtensionSpec:
         return self
 
     def append(self, relative: str, text: str) -> ExtensionSpec:
+        """Append ``text`` to an existing file (separated by a newline)."""
+
         def patch(root: Path) -> None:
             target = root / relative
             target.write_text(target.read_text() + "\n" + text)
@@ -346,6 +322,8 @@ class ExtensionSpec:
         return self
 
     def patch(self, relative: str, transform: Callable[[str], str]) -> ExtensionSpec:
+        """Rewrite an existing file by passing its text through ``transform``."""
+
         def apply(root: Path) -> None:
             target = root / relative
             target.write_text(transform(target.read_text()))
@@ -354,6 +332,8 @@ class ExtensionSpec:
         return self
 
     def patch_manifest(self, transform: Callable[[dict], dict]) -> ExtensionSpec:
+        """Rewrite ``manifest.json`` by passing the parsed manifest through ``transform``."""
+
         def apply(root: Path) -> None:
             path = root / "manifest.json"
             manifest = json.loads(path.read_text())
