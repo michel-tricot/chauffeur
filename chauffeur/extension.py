@@ -67,6 +67,15 @@ def _crx_to_zip(data: bytes) -> bytes:
     return data[offset:]
 
 
+def _unzip_crx(crx: bytes, dest: Path, extension_id: str) -> None:
+    """Strip the CRX header and extract the ZIP into dest, as an ExtensionNotFoundError on bad data."""
+    try:
+        with zipfile.ZipFile(io.BytesIO(_crx_to_zip(crx))) as archive:
+            archive.extractall(dest)
+    except (ValueError, zipfile.BadZipFile) as exc:
+        raise ExtensionNotFoundError(f"downloaded extension {extension_id} is not a valid CRX: {exc}") from exc
+
+
 def download_extension(
     extension_id: str, dest: Path, *, prodversion: str = _STORE_PRODVERSION, timeout: float = 30.0
 ) -> Path:
@@ -102,11 +111,7 @@ def download_extension(
         shutil.rmtree(staging)
     staging.mkdir(parents=True)
     try:
-        try:
-            with zipfile.ZipFile(io.BytesIO(_crx_to_zip(crx))) as archive:
-                archive.extractall(staging)
-        except (ValueError, zipfile.BadZipFile) as exc:
-            raise ExtensionNotFoundError(f"downloaded extension {extension_id} is not a valid CRX: {exc}") from exc
+        _unzip_crx(crx, staging, extension_id)
         if not (staging / "manifest.json").exists():
             raise ExtensionNotFoundError(f"downloaded extension {extension_id} has no manifest.json")
         # Store CRXs ship a _metadata dir, and Chrome refuses to load an unpacked

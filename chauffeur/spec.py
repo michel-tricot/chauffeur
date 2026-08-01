@@ -115,18 +115,24 @@ def _resolve_ua(binary: Path, spec: LaunchSpec) -> str | None:
     return spec.user_agent
 
 
+# Named window positions and how far down the screen they sit: the y offset is
+# (screen_height - window_height) // share. "center" is the middle; "dialog" a
+# third down, where the OS places system dialogs.
+_NAMED_POSITIONS = {"center": 2, "dialog": 3}
+
+
 def _window_flags(window: Window, screen: tuple[int, int] | None) -> list[str]:
     flags = []
     size = window.size or (800, 600)
     if window.size:
         flags.append(f"--window-size={size[0]},{size[1]}")
     position = window.position
-    if position in ("center", "dialog"):
+    if isinstance(position, str):  # a named position resolves against the screen
         if screen is None:
             position = None
         else:
-            y_share = 2 if position == "center" else 3  # dialogs sit above center
-            position = (max((screen[0] - size[0]) // 2, 0), max((screen[1] - size[1]) // y_share, 0))
+            share = _NAMED_POSITIONS[position]
+            position = (max((screen[0] - size[0]) // 2, 0), max((screen[1] - size[1]) // share, 0))
     if isinstance(position, tuple):
         flags.append(f"--window-position={position[0]},{position[1]}")
     return flags
