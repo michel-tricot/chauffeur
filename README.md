@@ -124,14 +124,24 @@ so its scripts can call `py.on(...)` / `py.notify(...)` from their first line.
 
 ## Patch and load an extension
 
+The source is a local unpacked directory or an id pulled from the Chrome Web
+Store; both take the same patches:
+
 ```python
 from chauffeur import ExtensionBuild, find_installed_extension
 
+# local: an unpacked dir, or a copy from an installed browser
 src = find_installed_extension("pejdijmoenmkgeppbflobdenhhabjlaj")
+ext = ExtensionBuild(src)
+
+# or pull it from the Web Store by id (downloaded once, cached)
+ext = ExtensionBuild.from_store("pejdijmoenmkgeppbflobdenhhabjlaj")
+
 ext = (
-    ExtensionBuild(src)
-    .inject_config("background.js", {"port": 8765, "token": "…"})
-    .append("background.js", bridge_js)
+    ext
+    .inject_config("background.js", {"port": 8765, "token": "…"})  # prepend a config global
+    .append("background.js", bridge_js)                            # modify an existing file
+    .add_file("content/inject.js", inject_js)                      # add a new file
     .patch_manifest(lambda m: {**m, "name": m["name"] + " (patched)"})
 )
 spec = LaunchSpec(profile=..., extensions=(ext,))

@@ -47,6 +47,11 @@ runners.
 
 - Chrome silently ignores `--app=about:blank` and opens a *tabbed* window;
   deferred app pages therefore launch on a real placeholder file.
+- `ExtensionBuild` source is a local dir (a Path) or `from_store(id)` which
+  downloads the CRX from the Chrome Web Store (`download_extension`, cached
+  in `<profile>.extensions/<id>.src`) and strips the CRX2/CRX3 header. Patch
+  ops: inject_config/append/patch modify existing files, add_file adds new
+  ones, patch_manifest edits the manifest.
 - Branded Google Chrome 137+ silently ignores `--load-extension`, so
   chauffeur never uses it: `LaunchSpec.extensions` builds into
   `<profile>.extensions/<key>` at launch and `Browser.start()` loads each
