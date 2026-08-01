@@ -1,11 +1,42 @@
-# chauffeur
+<div align="center">
 
-Control a local Chromium-family browser from Python. You decide how it spins
-up, patch and load extensions, and talk to it in **both directions** with a
-decorator-based command API.
+# 🚗 chauffeur
 
-`chauffeur` is a control plane, not an automation framework — there are no
-selectors or waits, and no daemon. Lifecycle is the consumer's to own.
+**Drive a local Chromium browser from Python — your launch, your lifecycle, both directions.**
+
+[![CI](https://github.com/michel-tricot/chauffeur/actions/workflows/ci.yml/badge.svg)](https://github.com/michel-tricot/chauffeur/actions/workflows/ci.yml)
+[![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
+![Python 3.12+](https://img.shields.io/badge/python-3.12%2B-blue.svg)
+![Platforms: macOS · Linux](https://img.shields.io/badge/platform-macOS%20%C2%B7%20Linux-lightgrey.svg)
+[![Ruff](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/astral-sh/ruff/main/assets/badge/v2.json)](https://github.com/astral-sh/ruff)
+
+</div>
+
+`chauffeur` is a **control plane, not an automation framework** — no selectors,
+no waits, no daemon. You decide how the browser spins up, patch and load
+extensions, and talk to it in both directions with a decorator-based command
+API. Lifecycle is yours to own.
+
+Good for local-first desktop-style apps with a Chromium UI, browser-backed
+tooling, extension harnesses, and keeping your own logged-in session alive.
+
+## Features
+
+- 🚀 **Launch your way** — headless or headed, chromeless app windows, any
+  installed Chromium (Chrome/Chromium/Brave/Edge), a dedicated profile with
+  guardrails against clobbering your real one.
+- 🔌 **Bidirectional commands** — `py.call(...)` into Python and
+  `browser.call(...)` into JS over one JSON envelope, with dataclass
+  validation and error replies that never hang.
+- 🧵 **Async or sync** — the async `Browser`, or a drop-in `SyncBrowser` with
+  no `async`/`await`.
+- 📄 **Local pages, no server** — show an HTML file (with its css/js) over
+  `file://`, including UIs packaged inside a wheel.
+- 🧩 **Extension patching** — take a local dir or pull one from the Chrome Web
+  Store, inject config, rewrite or add files, load over CDP.
+- 🕵️ **User-Agent capture/replay** — keep a `cf_clearance` cookie valid across
+  headless runs.
+- 🪶 **Tiny** — one runtime dependency (`websockets`), no daemon, no magic.
 
 ## Install
 
@@ -15,6 +46,23 @@ uv add chauffeur   # or: pip install chauffeur
 
 Requires Python 3.12+ and a Chromium-family browser (Chrome, Chromium, Brave,
 or Edge). macOS and Linux.
+
+## Quickstart
+
+```python
+import asyncio
+from pathlib import Path
+from chauffeur import Browser, LaunchSpec
+
+
+async def main():
+    spec = LaunchSpec(profile=Path("~/.myapp/profile"), headless=True)
+    async with Browser(spec) as browser:
+        print(await browser.evaluate("navigator.userAgent"))
+
+
+asyncio.run(main())
+```
 
 ## Launch a browser your way
 
@@ -189,6 +237,12 @@ force one verbatim, or leave it `None` (default) to not touch the UA at all. If
 nothing was captured, replay falls back to a per-platform reconstruction, so a
 missing capture never breaks a launch.
 
+## Examples
+
+Runnable, self-contained scripts live in [`examples/`](examples/) — from a
+one-liner launch to a live-updating packaged UI and Web Store extension
+patching. Run any with `uv run examples/<name>/main.py`.
+
 ## License
 
-MIT
+MIT © Michel Tricot
