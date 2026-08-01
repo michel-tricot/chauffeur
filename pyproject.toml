@@ -1,0 +1,50 @@
+# Single-package library. Lint/type/test tooling is configured once, here.
+
+[project]
+name = "chauffeur"
+version = "0.1.0"
+description = "Control a local Chromium-family browser: launch it your way, patch and load extensions, talk to it both ways"
+readme = "README.md"
+license = "MIT"
+authors = [{ name = "Michel Tricot", email = "michel.tricot@gmail.com" }]
+requires-python = ">=3.11"
+keywords = ["browser", "chrome", "cdp", "devtools", "extension", "automation"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Developers",
+    "Programming Language :: Python :: 3",
+]
+dependencies = ["websockets>=12"]
+
+[project.urls]
+Homepage = "https://github.com/michel-tricot/chauffeur"
+Issues = "https://github.com/michel-tricot/chauffeur/issues"
+
+[dependency-groups]
+dev = ["ruff>=0.8", "ty", "pytest>=8", "pytest-asyncio>=0.24", "deptry>=0.20"]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["chauffeur"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+asyncio_mode = "auto"
+
+[tool.ruff]
+line-length = 120
+target-version = "py311"
+
+[tool.ruff.lint]
+extend-select = ["I"]
+ignore = [
+    "S110",   # try/except/pass — deliberate best-effort cleanup paths
+    "BLE001", # broad excepts guard the same cleanup paths
+    "PYI034", # start()/__aenter__ return the concrete Browser on purpose
+]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/*" = ["B017", "DTZ001"]  # blind-raise and naive datetime are fine in tests
