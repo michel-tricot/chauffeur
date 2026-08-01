@@ -13,7 +13,7 @@ selectors or waits, and no daemon. Lifecycle is the consumer's to own.
 uv add chauffeur   # or: pip install chauffeur
 ```
 
-Requires Python 3.11+ and a Chromium-family browser (Chrome, Chromium, Brave,
+Requires Python 3.12+ and a Chromium-family browser (Chrome, Chromium, Brave,
 or Edge). macOS and Linux.
 
 ## Launch a browser your way

@@ -23,7 +23,7 @@ lifecycle.
 
 All three checks must pass before a change is done. CI
 (`.github/workflows/ci.yml`) runs lint, types, deptry, and tests on
-Python 3.11–3.13; unit tests never need a browser, so they pass on bare
+Python 3.12–3.14; unit tests never need a browser, so they pass on bare
 runners.
 
 ## Architecture notes

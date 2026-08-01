@@ -17,6 +17,7 @@ import tempfile
 import time
 import urllib.request
 from dataclasses import dataclass
+from importlib.resources import as_file
 from importlib.resources.abc import Traversable
 from pathlib import Path
 from typing import Any
@@ -57,16 +58,6 @@ def screen_size() -> tuple[int, int] | None:
         return None
 
 
-def _extract_tree(src: Traversable, dest: Path) -> None:
-    for item in src.iterdir():
-        target = dest / item.name
-        if item.is_dir():
-            target.mkdir()
-            _extract_tree(item, target)
-        else:
-            target.write_bytes(item.read_bytes())
-
-
 def _scratch_dir(stack: contextlib.ExitStack) -> Path:
     """A temp dir that lives until the stack (i.e. the browser) is done."""
     return Path(stack.enter_context(tempfile.TemporaryDirectory(prefix="chauffeur-page-")))
@@ -76,9 +67,8 @@ def _page_to_uri(page: Path | Traversable, stack: contextlib.ExitStack) -> str:
     """file:// URI for a local page; packaged resources are extracted first.
 
     A filesystem Path is used in place. Any other traversable (e.g. package
-    data inside a zip) is copied to a temp dir — with its sibling css/js, via
-    the parent when the traversable exposes one — that lives until the stack
-    closes.
+    data inside a zip) is materialized with as_file — via its parent when it
+    exposes one, so sibling css/js come along — until the stack closes.
     """
     if isinstance(page, Path):
         page = page.expanduser()
@@ -86,12 +76,10 @@ def _page_to_uri(page: Path | Traversable, stack: contextlib.ExitStack) -> str:
             raise LaunchError(f"page not found: {page}")
         return page.resolve().as_uri()
     parent = getattr(page, "parent", None)  # zipfile.Path has it; bare Traversables may not
-    tmp = _scratch_dir(stack)
     if parent is not None and parent.is_dir():
-        _extract_tree(parent, tmp)
-    else:
-        (tmp / page.name).write_bytes(page.read_bytes())
-    return (tmp / page.name).as_uri()
+        root = stack.enter_context(as_file(parent))
+        return (root / page.name).as_uri()
+    return stack.enter_context(as_file(page)).as_uri()
 
 
 def _blank_page_uri(stack: contextlib.ExitStack) -> str:
