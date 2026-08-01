@@ -21,7 +21,10 @@ lifecycle.
   reading order and tagged by kind: `*_headless_*` are safe to run
   unattended, `*_ui_*` open a real window and block until it is closed.
 
-All three checks must pass before a change is done.
+All three checks must pass before a change is done. CI
+(`.github/workflows/ci.yml`) runs lint, types, deptry, and tests on
+Python 3.11–3.13; unit tests never need a browser, so they pass on bare
+runners.
 
 ## Architecture notes
 
