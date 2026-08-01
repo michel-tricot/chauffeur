@@ -23,8 +23,8 @@ more advanced extension use cases last.
 | `06_ui_app_window` | A centered chromeless app window; its button counts clicks and notifies Python |
 | `07_ui_packaged_ui` | A local page with separate css/js via `app_page`, shown as a modal dialog; close it from the UI |
 | `08_ui_live_updates` | Python pushes updates into the page every second — clock, load average, pulse |
-| `09_headless_extension_build` | Patch a local extension with `ExtensionSpec` and load it via `Extensions.loadUnpacked` |
-| `10_headless_extension_store` | Pull an extension from the Chrome Web Store by id, patch it, and load it (needs network) |
+| `09_headless_extension_build` | Patch a local extension so its own page calls a Python command — injected config drives the behavior |
+| `10_headless_extension_store` | Pull a real extension from the Chrome Web Store, add a page to it, and drive it via a command (needs network) |
 
 All examples use a throwaway profile in a temp directory; nothing touches your
 real browser profile.
