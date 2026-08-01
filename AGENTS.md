@@ -79,10 +79,13 @@ To cut a release:
   inject_config/append/patch modify existing files, add_file adds new ones,
   patch_manifest edits the manifest.
 - `download_extension` strips the CRX2/CRX3 header AND the `_metadata` dir
-  (Chrome refuses to load an unpacked extension that contains `_metadata`),
-  and unpacks into a `.downloading` staging sibling that is swapped in only
-  after it validates, so a truncated or manifest-less download never destroys
-  an existing cached copy. `StoreExtension`/`from_store` take `refresh=True`
+  (Chrome refuses to load an unpacked extension that contains `_metadata`; the
+  strip also runs in `build_extension`, so a cache from before this fix still
+  loads), and unpacks into a unique `mkdtemp` staging sibling swapped in only
+  after it validates, so a truncated or manifest-less download (or a concurrent
+  download of the same id) never destroys an existing cached copy. Filesystem
+  errors are wrapped as `ExtensionNotFoundError`. `StoreExtension`/`from_store`
+  take `refresh=True`
   (re-download every build to pick up store updates) and `timeout`; when the
   store is unreachable a refresh falls back to the cached copy, so going
   offline never breaks a launch that worked before.

@@ -15,6 +15,7 @@ import json
 import logging
 import re
 import shutil
+import tempfile
 import urllib.parse
 import urllib.request
 import zipfile
@@ -90,9 +91,10 @@ def _swap_in(staging: Path, dest: Path) -> None:
     """Replace dest with staging, restoring the old dest if the rename fails.
 
     So a launch that already had a working copy at dest never ends up with none.
+    The backup name derives from the unique staging name, so concurrent swaps of
+    the same dest never touch each other's directories.
     """
-    backup = dest.with_name(dest.name + ".old")
-    shutil.rmtree(backup, ignore_errors=True)
+    backup = dest.with_name(staging.name + ".old")
     had_dest = dest.exists()
     if had_dest:
         dest.rename(backup)
@@ -102,7 +104,8 @@ def _swap_in(staging: Path, dest: Path) -> None:
         if had_dest:
             backup.rename(dest)  # put the old copy back
         raise
-    shutil.rmtree(backup, ignore_errors=True)
+    if had_dest:
+        shutil.rmtree(backup, ignore_errors=True)
 
 
 def download_extension(
@@ -134,11 +137,13 @@ def download_extension(
         raise ExtensionNotFoundError(f"store returned no data for {extension_id} (try a higher prodversion)")
     # Unpack into a staging sibling and swap in only a validated result, so a bad
     # download (truncated CRX, no manifest) never destroys an existing copy at dest.
+    # mkdtemp makes each staging dir unique, so concurrent downloads of the same id
+    # cannot clobber each other's work; the finally cleans it on every normal path
+    # (only a hard kill can strand one).
     dest = dest.expanduser()
-    staging = dest.with_name(dest.name + ".downloading")
+    dest.parent.mkdir(parents=True, exist_ok=True)
+    staging = Path(tempfile.mkdtemp(dir=dest.parent, prefix=f"{dest.name}.downloading-"))
     try:
-        shutil.rmtree(staging, ignore_errors=True)  # clear a leftover from a prior crash
-        staging.mkdir(parents=True)
         _unzip_crx(crx, staging, extension_id)
         if not (staging / "manifest.json").exists():
             raise ExtensionNotFoundError(f"downloaded extension {extension_id} has no manifest.json")

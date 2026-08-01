@@ -195,6 +195,52 @@ def test_manifestless_download_keeps_existing_copy(tmp_path, monkeypatch):
     assert json.loads((dest / "manifest.json").read_text())["name"] == "kept"
 
 
+def test_unpack_oserror_wrapped_and_existing_copy_kept(tmp_path, monkeypatch):
+    _fake_download(monkeypatch, _crx3(_zip_bytes({"manifest.json": '{"name": "kept"}'})))
+    dest = download_extension("abcdefghijklmnopabcdefghijklmnop", tmp_path / "dl")
+
+    def explode(crx, dest, extension_id):
+        raise OSError("disk full")
+
+    monkeypatch.setattr(ext_module, "_unzip_crx", explode)
+    # Filesystem failures honor the documented contract, so cache fallbacks work.
+    with pytest.raises(ExtensionNotFoundError, match="could not unpack"):
+        download_extension("abcdefghijklmnopabcdefghijklmnop", tmp_path / "dl")
+    assert json.loads((dest / "manifest.json").read_text())["name"] == "kept"
+
+
+def test_download_leaves_unrelated_staging_dirs_alone(tmp_path, monkeypatch):
+    # Staging dirs are unique per download; a concurrent download's staging (here a
+    # stand-in stray dir) must never be deleted or reused by another download.
+    _fake_download(monkeypatch, _crx3(_zip_bytes({"manifest.json": "{}"})))
+    stray = tmp_path / "dl.downloading-other"
+    stray.mkdir(parents=True)
+    (stray / "half-extracted.js").write_text("keep me")
+
+    download_extension("abcdefghijklmnopabcdefghijklmnop", tmp_path / "dl")
+
+    assert (stray / "half-extracted.js").read_text() == "keep me"
+
+
+def test_download_cleans_up_its_own_staging(tmp_path, monkeypatch):
+    _fake_download(monkeypatch, _crx3(_zip_bytes({"manifest.json": "{}"})))
+    download_extension("abcdefghijklmnopabcdefghijklmnop", tmp_path / "dl")
+    download_extension("abcdefghijklmnopabcdefghijklmnop", tmp_path / "dl")
+    leftovers = [p.name for p in tmp_path.iterdir() if ".downloading-" in p.name or p.name.endswith(".old")]
+    assert leftovers == []
+
+
+def test_swap_in_restores_dest_when_swap_fails(tmp_path):
+    dest = tmp_path / "dest"
+    dest.mkdir()
+    (dest / "manifest.json").write_text('{"name": "old"}')
+
+    with pytest.raises(OSError):  # staging path doesn't exist: the swap's rename fails
+        ext_module._swap_in(tmp_path / "missing-staging", dest)
+
+    assert json.loads((dest / "manifest.json").read_text())["name"] == "old"
+
+
 def test_store_source_downloads_once(tmp_path, monkeypatch):
     calls = []
     _fake_download(monkeypatch, _crx3(_zip_bytes({"manifest.json": "{}"})), counter=calls)

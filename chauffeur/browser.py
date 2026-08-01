@@ -208,10 +208,14 @@ class Browser:
                 waiter.cancel()
 
     async def aclose(self) -> None:
-        if self.cdp is not None:
-            await self.cdp.close()
-        if self.handle is not None:
-            await asyncio.to_thread(self.handle.terminate)
+        try:
+            if self.cdp is not None:
+                await self.cdp.close()
+        finally:
+            # Terminate even when closing the CDP connection fails; otherwise the
+            # browser process would outlive its owner.
+            if self.handle is not None:
+                await asyncio.to_thread(self.handle.terminate)
 
     async def __aenter__(self) -> Browser:
         return await self.start()
