@@ -283,7 +283,7 @@ class ExtensionSpec:
         self.worker_channel = worker_channel
 
     @classmethod
-    def from_store(
+    def from_store(  # noqa: PLR0913 — a store pull has several independent knobs
         cls,
         extension_id: str,
         *,

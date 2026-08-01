@@ -28,6 +28,7 @@ import subprocess
 from collections.abc import Callable
 from dataclasses import dataclass
 from importlib.resources import files
+from pathlib import Path
 from typing import Any, Literal
 
 from chauffeur import serde
@@ -227,7 +228,7 @@ class Browser:
             # reliable way to load unpacked extensions.
             self.extension_ids = []
             self._channel_ext_ids = set()
-            for ext_path, wants in zip(self.handle.extensions, wants_channel):
+            for ext_path, wants in zip(self.handle.extensions, wants_channel, strict=True):
                 loaded = await cdp.send("Extensions.loadUnpacked", {"path": str(ext_path)})
                 ext_id = loaded["id"]
                 self.extension_ids.append(ext_id)
