@@ -46,6 +46,23 @@ def test_window_centering_with_screen():
     assert "--window-position=800,350" in args
 
 
+def test_bare_headed_launch_starts_blank_not_ntp():
+    assert _args(headless=False)[-1] == "about:blank"
+
+
+def test_show_browser_ui_keeps_ntp():
+    assert "about:blank" not in _args(headless=False, show_browser_ui=True)
+
+
+def test_bare_headless_launch_gets_no_url():
+    assert "about:blank" not in _args()
+
+
+def test_blank_does_not_override_url_or_app():
+    assert _args(headless=False, url="https://a")[-1] == "https://a"
+    assert "about:blank" not in _args(headless=False, app_url="https://a")
+
+
 def test_minimal_footprint_toggle():
     assert "--disable-gpu" in _args()
     assert "--disable-gpu" not in _args(minimal_footprint=False)

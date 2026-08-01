@@ -9,14 +9,19 @@ listeners — that event stream is half of the bidirectional story.
 from __future__ import annotations
 
 import asyncio
+import contextlib
+import functools
 import inspect
 import json
+import logging
 import time
 import urllib.request
 from collections.abc import Callable
 from typing import Any
 
 from websockets.asyncio.client import connect as ws_connect
+
+log = logging.getLogger(__name__)
 
 
 class CDPError(RuntimeError):
@@ -87,7 +92,11 @@ class CDPClient:
     async def _read_loop(self) -> None:
         try:
             async for raw in self._ws:
-                msg = json.loads(raw)
+                try:
+                    msg = json.loads(raw)
+                except ValueError:
+                    log.warning("dropping non-JSON CDP frame")
+                    continue
                 if "id" in msg:
                     future = self._pending.get(msg["id"])
                     if future is None or future.done():
@@ -100,7 +109,7 @@ class CDPClient:
                 elif "method" in msg:
                     self._emit(msg)
         except Exception:
-            pass
+            log.debug("CDP read loop ended", exc_info=True)
         finally:
             self._closed.set()
             for future in self._pending.values():
@@ -109,13 +118,26 @@ class CDPClient:
 
     def _emit(self, msg: dict) -> None:
         params = msg.get("params", {})
-        for key in ((msg["method"], msg.get("sessionId")), (msg["method"], None)):
+        session = msg.get("sessionId")
+        keys = [(msg["method"], session)]
+        if session is not None:  # unscoped listeners see every session's events
+            keys.append((msg["method"], None))
+        for key in keys:
             for handler in self._listeners.get(key, []):
-                result = handler(params)
+                try:
+                    result = handler(params)
+                except Exception:
+                    log.exception("CDP event handler for %s failed", msg["method"])
+                    continue
                 if inspect.isawaitable(result):
                     task = asyncio.ensure_future(result)
                     self._tasks.add(task)
-                    task.add_done_callback(self._tasks.discard)
+                    task.add_done_callback(functools.partial(self._finish_task, msg["method"]))
+
+    def _finish_task(self, method: str, task: asyncio.Task) -> None:
+        self._tasks.discard(task)
+        if not task.cancelled() and task.exception() is not None:
+            log.error("async CDP event handler for %s failed", method, exc_info=task.exception())
 
     # -- target helpers ------------------------------------------------------
 
@@ -141,7 +163,5 @@ class CDPClient:
 
     async def close(self) -> None:
         await self._ws.close()
-        try:
+        with contextlib.suppress(Exception):
             await self._reader
-        except Exception:
-            pass

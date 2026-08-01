@@ -29,8 +29,14 @@ spec = LaunchSpec(
     devtools_port=0,                    # 0 = pick a free port
     window=Window(size=(390, 320), position="center"),
     minimal_footprint=True,             # trim the process down
+    show_browser_ui=False,              # headed windows start clean (default)
 )
 ```
+
+Headed windows start without the bookmarks bar and open about:blank instead
+of the New Tab Page; pass `show_browser_ui=True` to restore Chrome's regular
+UI. Tabbed windows always keep the toolbar — `app_url` / `app_page` open a
+toolbar-less window.
 
 ## Talk to the browser both ways
 
@@ -88,6 +94,28 @@ dataclass; annotate it with `dict` (or leave it off) and you get the raw
 payload. Dataclass return values are serialized back automatically. Unknown
 commands, bad params, and handler exceptions always produce an error reply so a
 `await py.call(...)` never hangs.
+
+## Show a local page — no server
+
+Point the browser at an HTML file; its relative css/js/images load over
+file://. `app_page` opens it as a chromeless app window, `page` as a tab:
+
+```python
+spec = LaunchSpec(profile=..., headless=False, app_page=Path("ui/app.html"))
+```
+
+Packaged UIs work the same — pass an importlib.resources traversable and
+chauffeur extracts it (siblings included) for the browser's lifetime, even
+from a zipped install:
+
+```python
+from importlib.resources import files
+
+spec = LaunchSpec(profile=..., app_page=files("myapp") / "ui" / "app.html")
+```
+
+With `Browser`, the page is navigated only after the py channel is installed,
+so its scripts can call `py.on(...)` / `py.notify(...)` from their first line.
 
 ## Patch and load an extension
 

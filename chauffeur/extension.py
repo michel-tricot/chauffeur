@@ -16,7 +16,7 @@ from pathlib import Path
 from chauffeur.browsers import catalog
 
 
-class ExtensionNotFound(RuntimeError):
+class ExtensionNotFoundError(RuntimeError):
     """No installed extension matches the id."""
 
 
@@ -41,7 +41,7 @@ def find_installed_extension(extension_id: str, *, must_contain: str = "manifest
             if best is None or key > best[0]:
                 best = (key, ext_dir)
     if best is None:
-        raise ExtensionNotFound(f"extension {extension_id} not found in any installed browser")
+        raise ExtensionNotFoundError(f"extension {extension_id} not found in any installed browser")
     return best[1]
 
 
@@ -66,7 +66,7 @@ class ExtensionBuild:
         return self
 
     def inject_config(self, relative: str, config: dict) -> ExtensionBuild:
-        """Prepend `self.<GLOBAL> = {...}` so appended code can read it."""
+        """Prepend `globalThis.__chauffeur_config = {...}` so appended code can read it."""
         payload = "globalThis.__chauffeur_config = " + json.dumps(config) + ";\n"
 
         def patch(root: Path) -> None:
@@ -94,9 +94,17 @@ class ExtensionBuild:
         return self
 
     def build(self) -> Path:
-        if self.workdir.exists():
-            shutil.rmtree(self.workdir)
-        shutil.copytree(self.source, self.workdir)
+        source = self.source.expanduser().resolve()
+        workdir = self.workdir.expanduser().resolve()
+        if workdir == source or source in workdir.parents or workdir in source.parents:
+            raise ValueError(f"workdir {workdir} overlaps extension source {source}")
+        if workdir.exists():
+            # Only delete what looks like a previous build; a mistyped workdir
+            # (profile dir, home dir, ...) must not be wiped.
+            if not (workdir / "manifest.json").exists():
+                raise ValueError(f"refusing to delete {workdir}: not a previous build (no manifest.json)")
+            shutil.rmtree(workdir)
+        shutil.copytree(source, workdir)
         for patch in self._patches:
-            patch(self.workdir)
-        return self.workdir
+            patch(workdir)
+        return workdir

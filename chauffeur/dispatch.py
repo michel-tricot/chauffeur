@@ -46,7 +46,9 @@ class CommandRegistry:
         return register
 
     def _register(self, fn: Callable, name: str | None, strict: bool) -> Callable:
-        cmd = name or fn.__name__
+        cmd = name or getattr(fn, "__name__", None)
+        if cmd is None:
+            raise ValueError("cannot infer a command name for this callable; pass one explicitly")
         if cmd in self._commands:
             raise ValueError(f"command {cmd!r} already registered")
         hints = typing.get_type_hints(fn)

@@ -30,6 +30,11 @@ build-backend = "hatchling.build"
 [tool.hatch.build.targets.wheel]
 packages = ["chauffeur"]
 
+[tool.ty.src]
+# Type-check the library only; tests stub internals (fake websockets, stub CDP
+# clients) and are covered by pytest instead.
+include = ["chauffeur"]
+
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 asyncio_mode = "auto"
@@ -39,12 +44,31 @@ line-length = 120
 target-version = "py311"
 
 [tool.ruff.lint]
-extend-select = ["I"]
+extend-select = [
+    "I",                          # import sorting
+    "W", "B", "UP", "SIM", "C4",  # pycodestyle warnings, bugbear, pyupgrade, simplify, comprehensions
+    "RUF",                        # ruff-specific
+    "ASYNC",                      # async pitfalls
+    "S",                          # bandit
+    "BLE",                        # blind excepts
+    "DTZ",                        # naive datetimes
+    "PTH",                        # enforce pathlib
+    "N", "A",                     # naming, builtin shadowing
+    "PIE", "PERF", "T20", "ISC", "G", "ERA", "FURB", "RET", "ARG",
+    "PL",                         # pylint subset
+]
 ignore = [
-    "S110",   # try/except/pass — deliberate best-effort cleanup paths
-    "BLE001", # broad excepts guard the same cleanup paths
-    "PYI034", # start()/__aenter__ return the concrete Browser on purpose
+    "S110",     # try/except/pass — deliberate best-effort cleanup paths
+    "BLE001",   # broad excepts guard the same cleanup paths
+    "PYI034",   # start()/__aenter__ return the concrete Browser on purpose
+    "S101",     # asserts as internal state guards are idiomatic here
+    "S603",     # spawning the browser is the library's purpose
+    "S310",     # urlopen only ever hits the local DevTools endpoint
+    "ASYNC109", # timeout= kwargs mirror CDP conventions; asyncio.timeout is the impl detail
+    "PLC0415",  # platform-conditional imports (ctypes on macOS) are deliberate
 ]
 
 [tool.ruff.lint.per-file-ignores]
-"tests/*" = ["B017", "DTZ001"]  # blind-raise and naive datetime are fine in tests
+"examples/**" = ["T201"]  # example scripts print
+"chauffeur/serde.py" = ["PLR0911", "PLR0912"]  # from_wire is a type switch; branch count is inherent
+"tests/*" = ["B017", "DTZ001", "S101", "S108", "ARG001", "ARG002", "PLR2004"]  # asserts, /tmp paths, unused handler params, magic values

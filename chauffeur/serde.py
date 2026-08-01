@@ -119,7 +119,7 @@ def _dataclass_from_wire(tp: Any, value: Any, strict: bool) -> Any:
     hints = _field_types(tp)
     fields = dataclasses.fields(tp)
     if strict:
-        extra = set(value) - {f.name for f in fields}
+        extra = {str(key) for key in value} - {f.name for f in fields}
         if extra:
             raise SerdeError(f"unexpected fields for {tp.__name__}: {sorted(extra)}")
     kwargs = {}

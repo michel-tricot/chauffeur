@@ -8,7 +8,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 
-class BrowserNotFound(RuntimeError):
+class BrowserNotFoundError(RuntimeError):
     """No browser matching the selector is installed."""
 
 
@@ -85,14 +85,14 @@ def resolve_browser(selector: str | Path = "auto") -> BrowserInfo:
     """Resolve "auto", a browser id/name, or an explicit binary path."""
     if isinstance(selector, Path):
         if not selector.exists():
-            raise BrowserNotFound(f"browser binary not found: {selector}")
+            raise BrowserNotFoundError(f"browser binary not found: {selector}")
         return BrowserInfo("custom", selector.name, selector, None)
     available = installed_browsers()
     if selector == "auto":
         if not available:
-            raise BrowserNotFound("no supported browser installed")
+            raise BrowserNotFoundError("no supported browser installed")
         return available[0]
     for browser in available:
         if selector in (browser.id, browser.name):
             return browser
-    raise BrowserNotFound(f"browser not installed: {selector!r}")
+    raise BrowserNotFoundError(f"browser not installed: {selector!r}")

@@ -21,13 +21,14 @@ Runtime.evaluate(py._deliver(...)). browser.call() runs the mirror direction.
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import json
 from collections.abc import Callable
 from importlib.resources import files
 from typing import Any
 
 from chauffeur import serde
-from chauffeur.cdp import CDPClient
+from chauffeur.cdp import CDPClient, CDPError
 from chauffeur.dispatch import CommandRegistry
 from chauffeur.launch import BrowserHandle, launch
 from chauffeur.spec import LaunchSpec
@@ -42,9 +43,15 @@ class Browser:
         self._spec = spec
         self._registry = CommandRegistry()
         self._cdp_listeners: list[tuple[str, Callable]] = []
+        self._tasks: set[asyncio.Task] = set()
         self.handle: BrowserHandle | None = None
         self.cdp: CDPClient | None = None
         self._session_id: str | None = None
+        self._target_id: str | None = None
+        # Set when the primary window/tab is closed. Chrome itself may keep
+        # running (macOS keeps the process alive with zero windows), so this —
+        # not the connection dropping — is the "user closed the app" signal.
+        self._page_closed = asyncio.Event()
 
     # -- decorator API -------------------------------------------------------
 
@@ -67,18 +74,8 @@ class Browser:
 
     async def call(self, command: str, params: Any = None, *, timeout: float = 30.0) -> Any:
         """Invoke a JS handler registered via py.on(command, ...)."""
-        assert self.cdp and self._session_id, "browser not started"
         envelope = json.dumps({"command": command, "params": serde.to_wire(params)})
-        result = await self.cdp.send(
-            "Runtime.evaluate",
-            {"expression": f"py._handle({envelope})", "awaitPromise": True, "returnByValue": True},
-            session_id=self._session_id,
-            timeout=timeout,
-        )
-        remote = result.get("result", {})
-        if result.get("exceptionDetails"):
-            raise RuntimeError(remote.get("description", "browser handler failed"))
-        return remote.get("value")
+        return await self.evaluate(f"py._handle({envelope})", timeout=timeout)
 
     async def evaluate(self, expression: str, *, await_promise: bool = True, timeout: float = 30.0) -> Any:
         """Run arbitrary JS in the primary session and return its value."""
@@ -89,7 +86,16 @@ class Browser:
             session_id=self._session_id,
             timeout=timeout,
         )
-        return result.get("result", {}).get("value")
+        details = result.get("exceptionDetails")
+        if details:
+            description = (details.get("exception") or {}).get("description") or details.get("text", "evaluation failed")
+            raise RuntimeError(description)
+        return (result.get("result") or {}).get("value")
+
+    async def navigate(self, url: str) -> None:
+        """Navigate the primary target."""
+        assert self.cdp and self._session_id, "browser not started"
+        await self.cdp.send("Page.navigate", {"url": url}, session_id=self._session_id)
 
     async def capture_user_agent(self) -> str | None:
         """Persist this browser's real UA next to the profile for later replay.
@@ -105,31 +111,47 @@ class Browser:
     # -- lifecycle -----------------------------------------------------------
 
     async def start(self) -> Browser:
-        self.handle = await asyncio.to_thread(launch, self._spec)
-        self.cdp = await CDPClient.connect(self.handle.port)
-        for event, fn in self._cdp_listeners:
-            self.cdp.on(event, fn)
-        target_id = await self._primary_target()
-        self._session_id = await self.cdp.attach(target_id)
-        await self._install_channel(self._session_id)
+        # defer_page: a page/app_page starts on about:blank and is navigated
+        # below, after the channel exists — its scripts can use py right away.
+        self.handle = await asyncio.to_thread(launch, self._spec, defer_page=True)
+        try:
+            cdp = self.cdp = await CDPClient.connect(self.handle.port)
+            for event, fn in self._cdp_listeners:
+                cdp.on(event, fn)
+            target_id = await self._primary_target(cdp)
+            self._target_id = target_id
+            cdp.on("Target.targetDestroyed", self._on_target_destroyed)
+            await cdp.send("Target.setDiscoverTargets", {"discover": True})
+            self._session_id = await cdp.attach(target_id)
+            await self._install_channel(cdp, self._session_id)
+            if self.handle.deferred_url:
+                await self.navigate(self.handle.deferred_url)
+        except BaseException:
+            await self.aclose()
+            raise
         return self
 
-    async def _primary_target(self) -> str:
-        for target in await self.cdp.targets():
+    async def _primary_target(self, cdp: CDPClient) -> str:
+        for target in await cdp.targets():
             if target.get("type") == "page":
                 return target["targetId"]
-        return await self.cdp.create_target(self._spec.url or "about:blank")
+        return await cdp.create_target(self._spec.url or "about:blank")
 
-    async def _install_channel(self, session_id: str) -> None:
-        self.cdp.on("Runtime.bindingCalled", self._on_binding, session_id=session_id)
-        await self.cdp.send("Runtime.enable", session_id=session_id)
-        await self.cdp.send("Page.enable", session_id=session_id)
-        await self.cdp.send("Runtime.addBinding", {"name": _BINDING}, session_id=session_id)
-        # Install py.js for future navigations, and in the current document.
-        await self.cdp.send(
-            "Page.addScriptToEvaluateOnNewDocument", {"source": _PY_JS}, session_id=session_id
-        )
-        await self.cdp.send("Runtime.evaluate", {"expression": _PY_JS}, session_id=session_id)
+    async def _install_channel(self, cdp: CDPClient, session_id: str) -> None:
+        cdp.on("Runtime.bindingCalled", self._on_binding, session_id=session_id)
+        await cdp.send("Runtime.enable", session_id=session_id)
+        await cdp.send("Runtime.addBinding", {"name": _BINDING}, session_id=session_id)
+        try:
+            # Page domain only exists on page targets; workers just get the
+            # direct evaluate below.
+            await cdp.send("Page.enable", session_id=session_id)
+            # Install py.js for future navigations, and in the current document.
+            await cdp.send(
+                "Page.addScriptToEvaluateOnNewDocument", {"source": _PY_JS}, session_id=session_id
+            )
+        except CDPError:
+            pass
+        await cdp.send("Runtime.evaluate", {"expression": _PY_JS}, session_id=session_id)
 
     def _on_binding(self, params: dict) -> None:
         if params.get("name") != _BINDING:
@@ -138,24 +160,50 @@ class Browser:
             msg = json.loads(params["payload"])
         except (KeyError, ValueError):
             return
-        asyncio.ensure_future(self._handle_binding(params.get("executionContextId"), msg))
+        task = asyncio.ensure_future(self._handle_binding(params.get("executionContextId"), msg))
+        self._tasks.add(task)
+        task.add_done_callback(self._tasks.discard)
 
-    async def _handle_binding(self, _ctx: Any, msg: dict) -> None:
+    async def _handle_binding(self, context_id: int | None, msg: dict) -> None:
         reply = await self._registry.dispatch(msg)
         if msg.get("id") is None:  # notify(): no reply expected
             return
-        expression = f"py._deliver({json.dumps(reply)})"
-        try:
-            await self.cdp.send(
-                "Runtime.evaluate", {"expression": expression}, session_id=self._session_id
-            )
-        except Exception:
-            pass
+        cdp = self.cdp
+        if cdp is None:  # shut down while the handler ran
+            return
+        # Deliver into the context that called the binding — iframes and
+        # non-default contexts have their own py object with the pending promise.
+        params: dict[str, Any] = {"expression": f"py._deliver({json.dumps(reply)})"}
+        if context_id is not None:
+            params["contextId"] = context_id
+        with contextlib.suppress(Exception):
+            await cdp.send("Runtime.evaluate", params, session_id=self._session_id)
 
-    async def serve(self) -> None:
-        """Block until the browser connection closes."""
+    def _on_target_destroyed(self, params: dict) -> None:
+        if params.get("targetId") == self._target_id:
+            self._page_closed.set()
+
+    async def serve(self, *, until: asyncio.Event | None = None) -> None:
+        """Block until the primary window/tab is closed, the browser
+        connection drops, or `until` is set.
+
+        Watching the window (not just the connection) matters: on macOS the
+        browser process outlives its last window, so the connection alone
+        never signals "the user closed the app". After serve() returns,
+        aclose() terminates the browser process.
+        """
         assert self.cdp, "browser not started"
-        await self.cdp.wait_closed()
+        waiters = [
+            asyncio.create_task(self.cdp.wait_closed()),
+            asyncio.create_task(self._page_closed.wait()),
+        ]
+        if until is not None:
+            waiters.append(asyncio.create_task(until.wait()))
+        try:
+            await asyncio.wait(waiters, return_when=asyncio.FIRST_COMPLETED)
+        finally:
+            for waiter in waiters:
+                waiter.cancel()
 
     async def aclose(self) -> None:
         if self.cdp is not None:
