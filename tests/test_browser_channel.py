@@ -343,3 +343,67 @@ def test_worker_channel_defaults_true(tmp_path):
     assert ExtensionSpec(src).worker_channel is True
     assert ExtensionSpec(src, worker_channel=False).worker_channel is False
     assert ExtensionSpec.from_store("x", worker_channel=False).worker_channel is False
+
+
+def test_keep_alive_defaults_and_validation(tmp_path):
+    from chauffeur import ExtensionSpec
+    from chauffeur.browser import _keep_alive_of
+    from chauffeur.extension import DEFAULT_KEEP_ALIVE
+
+    assert ExtensionSpec(tmp_path).keep_alive == DEFAULT_KEEP_ALIVE
+    assert ExtensionSpec(tmp_path, keep_alive=None).keep_alive is None
+    assert ExtensionSpec.from_store("x", keep_alive=2.0).keep_alive == 2.0
+    with pytest.raises(ValueError, match="keep_alive"):
+        ExtensionSpec(tmp_path, keep_alive=0)
+    # A plain pre-built Path entry gets the eviction-safe default.
+    assert _keep_alive_of(tmp_path) == DEFAULT_KEEP_ALIVE
+    assert _keep_alive_of(ExtensionSpec(tmp_path, keep_alive=None)) is None
+
+
+async def test_on_attached_starts_keepalive_ping(tmp_path):
+    browser = _browser(tmp_path)
+    browser._channel_ext_ids = {"abcdef"}
+    browser._keep_alive_by_ext = {"abcdef": 0.01}
+    worker = {"targetInfo": {"type": "service_worker", "url": "chrome-extension://abcdef/sw.js"}}
+
+    await browser._on_attached({**worker, "sessionId": "w1"})
+    await asyncio.sleep(0.05)
+    pings = [s for m, _, s in browser.cdp.sent if m == "Runtime.evaluate" and s == "w1"]
+    assert len(pings) >= 2  # periodic, not one-shot
+
+    # Respawn: the loop follows the new session; the old task is cancelled.
+    old_task = browser._keepalive_tasks["abcdef"]
+    await browser._on_attached({**worker, "sessionId": "w2"})
+    await asyncio.sleep(0.05)
+    assert old_task.cancelled()
+    assert any(m == "Runtime.evaluate" and s == "w2" for m, _, s in browser.cdp.sent)
+    browser._keepalive_tasks["abcdef"].cancel()
+
+
+async def test_on_attached_skips_keepalive_when_disabled(tmp_path):
+    browser = _browser(tmp_path)
+    browser._channel_ext_ids = {"abcdef"}  # channel yes, keep_alive=None
+    worker = {"targetInfo": {"type": "service_worker", "url": "chrome-extension://abcdef/sw.js"}}
+    await browser._on_attached({**worker, "sessionId": "w1"})
+    assert browser._keepalive_tasks == {}
+
+
+async def test_keepalive_loop_ends_when_session_dies(tmp_path):
+    browser = _browser(tmp_path)
+
+    async def dead_send(method, params=None, *, session_id=None, timeout=30.0):
+        raise CDPError("Session with given id not found")
+
+    browser.cdp.send = dead_send
+    # Ends instead of spinning forever against a dead session.
+    await asyncio.wait_for(browser._keepalive_loop("w1", 0.01), 1)
+
+
+async def test_aclose_cancels_keepalive(tmp_path):
+    browser = _browser(tmp_path)
+    task = asyncio.create_task(browser._keepalive_loop("w1", 60))
+    browser._keepalive_tasks["abcdef"] = task
+    await browser.aclose()
+    await asyncio.sleep(0)
+    assert task.cancelled()
+    assert browser._keepalive_tasks == {}

@@ -192,6 +192,18 @@ may not exist the instant an extension loads. `browser.extension(id)` raises
 `LookupError` until the worker has attached; poll `browser.extension_ready(id)`
 (or let inbound calls arrive first) before the first Python -> worker call.
 
+Chrome evicts an idle MV3 worker after ~30 seconds, and eviction loses the
+worker's in-memory state and stalls its in-flight work. While a worker holds a
+channel, chauffeur therefore keeps it awake with a cheap liveness poke every
+`keep_alive` seconds (default 25, driven from Python — an in-worker timer would
+itself be suspended). Tune it per extension:
+
+```python
+ExtensionSpec(source, keep_alive=2.0)   # aggressive: protect short-lived in-flight state
+ExtensionSpec(source, keep_alive=None)  # allow dormancy; a respawn re-installs the
+                                        # channel, but the worker's state is gone
+```
+
 ## Replay a captured User-Agent (Cloudflare)
 
 Headless Chromium sends a `HeadlessChrome/x.y` UA that Cloudflare rejects, and a

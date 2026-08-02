@@ -96,6 +96,12 @@ To cut a release:
   `<profile>.extensions/<key>` at launch and `Browser.start()` loads each
   over CDP (`Extensions.loadUnpacked`). Chromium and
   dev builds still honor the flag.
+- MV3 evicts an idle service worker after ~30s, losing its in-memory state
+  and stalling in-flight work; an in-worker `setInterval` is itself suspended,
+  so `Browser` keeps channel workers awake from outside with a periodic
+  `Runtime.evaluate` poke (`ExtensionSpec(keep_alive=...)`, default 25s,
+  `None` to allow dormancy). The loop lives in `_keepalive_loop`; it dies with
+  its session and `_on_attached` starts a fresh one on respawn.
 - On macOS the browser process outlives its last window. "User closed the
   app" is detected via `Target.targetDestroyed` on the primary target; the
   connection dropping is not a reliable close signal.

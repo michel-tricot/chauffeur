@@ -34,7 +34,7 @@ from typing import Any, Literal
 from chauffeur import serde
 from chauffeur.cdp import CDPClient, CDPError
 from chauffeur.dispatch import CommandRegistry
-from chauffeur.extension import ExtensionSpec
+from chauffeur.extension import DEFAULT_KEEP_ALIVE, ExtensionSpec
 from chauffeur.launch import BrowserHandle, launch
 from chauffeur.spec import LaunchSpec
 from chauffeur.ua import save_user_agent
@@ -105,6 +105,11 @@ class Browser:
         self._ext_sessions: dict[str, str] = {}
         # extension ids whose spec asked for a worker channel (worker_channel).
         self._channel_ext_ids: set[str] = set()
+        # extension_id -> keep-alive interval (seconds) for channel workers;
+        # absent means the spec opted out (keep_alive=None).
+        self._keep_alive_by_ext: dict[str, float] = {}
+        # extension_id -> running ping task; replaced on worker respawn.
+        self._keepalive_tasks: dict[str, asyncio.Task] = {}
         # Set when the primary window/tab is closed. Chrome itself may keep
         # running (macOS keeps the process alive with zero windows), so this,
         # not the connection dropping, is the "user closed the app" signal.
@@ -246,12 +251,16 @@ class Browser:
             # reliable way to load unpacked extensions.
             self.extension_ids = []
             self._channel_ext_ids = set()
-            for ext_path, wants in zip(self.handle.extensions, wants_channel, strict=True):
+            self._keep_alive_by_ext = {}
+            keep_alives = [_keep_alive_of(entry) for entry in self._spec.extensions]
+            for ext_path, wants, keep_alive in zip(self.handle.extensions, wants_channel, keep_alives, strict=True):
                 loaded = await cdp.send("Extensions.loadUnpacked", {"path": str(ext_path)})
                 ext_id = loaded["id"]
                 self.extension_ids.append(ext_id)
                 if wants:
                     self._channel_ext_ids.add(ext_id)
+                    if keep_alive is not None:
+                        self._keep_alive_by_ext[ext_id] = keep_alive
             target_id = await self._primary_target(cdp)
             self._target_id = target_id
             cdp.on("Target.targetDestroyed", self._on_target_destroyed)
@@ -314,6 +323,7 @@ class Browser:
             # Keep the session; a worker left paused would hang.
             with contextlib.suppress(Exception):
                 await cdp.send("Runtime.runIfWaitingForDebugger", session_id=session_id)
+            self._start_keepalive(ext_id, session_id)
             return
         # Not adopting (foreign worker, or worker_channel=False): let it run and
         # detach so we neither install a channel nor keep it attached/pinned.
@@ -321,6 +331,27 @@ class Browser:
             await cdp.send("Runtime.runIfWaitingForDebugger", session_id=session_id)
         with contextlib.suppress(Exception):
             await cdp.send("Target.detachFromTarget", {"sessionId": session_id})
+
+    def _start_keepalive(self, ext_id: str, session_id: str) -> None:
+        interval = self._keep_alive_by_ext.get(ext_id)
+        if interval is None:
+            return
+        old = self._keepalive_tasks.pop(ext_id, None)
+        if old is not None:  # respawn: the old session died with the old worker
+            old.cancel()
+        self._keepalive_tasks[ext_id] = asyncio.create_task(self._keepalive_loop(session_id, interval))
+
+    async def _keepalive_loop(self, session_id: str, interval: float) -> None:
+        # MV3 evicts an idle service worker (~30s), losing its in-memory state
+        # and stalling in-flight work; an in-worker timer is itself suspended
+        # when dormancy nears, so the activity poke must come from out-of-process.
+        # Each evaluate resets Chrome's idle clock. Ends when the session dies
+        # (shutdown, or the worker was evicted anyway); a respawned worker gets
+        # a fresh loop from _on_attached.
+        with contextlib.suppress(Exception):
+            while True:
+                await asyncio.sleep(interval)
+                await self._evaluate(session_id, "0", await_promise=False)
 
     def extension_ready(self, extension_id: str) -> bool:
         """Whether the extension's service worker has attached and its
@@ -407,6 +438,9 @@ class Browser:
     async def aclose(self) -> None:
         """Shut the browser down: orderly `Browser.close` (flushes profile
         state), then terminate the process and drop the CDP connection."""
+        for task in self._keepalive_tasks.values():
+            task.cancel()
+        self._keepalive_tasks.clear()
         try:
             if self.cdp is not None:
                 # Ask the browser to exit orderly first: Browser.close flushes
@@ -453,6 +487,12 @@ def _wants_channel(entry: ExtensionSpec | Path) -> bool:
     """Whether a LaunchSpec.extensions entry wants a worker channel. A plain
     pre-built Path defaults to yes; an ExtensionSpec carries the choice."""
     return entry.worker_channel if isinstance(entry, ExtensionSpec) else True
+
+
+def _keep_alive_of(entry: ExtensionSpec | Path) -> float | None:
+    """The keep-alive interval a LaunchSpec.extensions entry wants. A plain
+    pre-built Path gets the default; an ExtensionSpec carries the choice."""
+    return entry.keep_alive if isinstance(entry, ExtensionSpec) else DEFAULT_KEEP_ALIVE
 
 
 class ExtensionChannel:

@@ -34,6 +34,10 @@ _CRX_ENDPOINT = "https://clients2.google.com/service/update2/crx"
 _STORE_PRODVERSION = "9999.0.0.0"
 _CRX2, _CRX3 = 2, 3  # CRX header format versions
 
+# Chrome evicts an idle MV3 service worker after ~30s; a poke every 25s keeps
+# a channel worker under that limit with plenty of slack for a slow tick.
+DEFAULT_KEEP_ALIVE = 25.0
+
 
 class ExtensionNotFoundError(RuntimeError):
     """No usable extension for the source: a missing local dir, an id not on the store, or a bad download."""
@@ -246,7 +250,15 @@ class ExtensionSpec:
     means declare-vs-execute, not JSON-able config.)
     """
 
-    def __init__(self, source: Path | str | ExtensionSource, *, worker_channel: bool = True) -> None:
+    def __init__(
+        self,
+        source: Path | str | ExtensionSource,
+        *,
+        worker_channel: bool = True,
+        keep_alive: float | None = DEFAULT_KEEP_ALIVE,
+    ) -> None:
+        if keep_alive is not None and keep_alive <= 0:
+            raise ValueError(f"keep_alive must be positive seconds or None, got {keep_alive!r}")
         self.source: ExtensionSource = source if isinstance(source, ExtensionSource) else LocalExtension(Path(source))
         """Where the extension comes from: a local unpacked dir or the store."""
         self._patches: list[Callable[[Path], None]] = []
@@ -254,9 +266,16 @@ class ExtensionSpec:
         """When driven by `Browser`, auto-attach a `py_chauffeur` channel into this
         extension's service worker (so its code can call/handle commands and
         `browser.extension(id)` works). `False` loads it without a channel."""
+        self.keep_alive = keep_alive
+        """Seconds between liveness pokes `Browser` sends the channel worker so
+        MV3 does not evict it while idle (~30s; eviction loses the worker's
+        in-memory state and stalls in-flight work). Default `25.0`; lower it
+        (e.g. `2.0`) when even briefly-idle in-flight state must survive, or
+        pass `None` to let the worker go dormant. Only meaningful with
+        `worker_channel=True`."""
 
     @classmethod
-    def from_store(
+    def from_store(  # noqa: PLR0913, all keyword-only knobs mirroring the constructor and StoreExtension
         cls,
         extension_id: str,
         *,
@@ -264,18 +283,21 @@ class ExtensionSpec:
         timeout: float = 30.0,
         cache_dir: Path | None = None,
         worker_channel: bool = True,
+        keep_alive: float | None = DEFAULT_KEEP_ALIVE,
     ) -> ExtensionSpec:
         """Describe an extension pulled off the Chrome Web Store by id.
 
         ``refresh=True`` re-downloads on every build (picking up store updates)
         and falls back to the cached copy when the store is unreachable.
         ``cache_dir`` anchors the pristine download at a fixed location instead
-        of the build's profile-derived cache. ``worker_channel`` controls the
-        service-worker py_chauffeur channel (see the constructor).
+        of the build's profile-derived cache. ``worker_channel`` and
+        ``keep_alive`` control the service-worker `py_chauffeur` channel and
+        its liveness pokes (see the constructor).
         """
         return cls(
             StoreExtension(extension_id, refresh=refresh, timeout=timeout, cache_dir=cache_dir),
             worker_channel=worker_channel,
+            keep_alive=keep_alive,
         )
 
     @property
