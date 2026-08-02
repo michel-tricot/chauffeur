@@ -110,9 +110,7 @@ def _swap_in(staging: Path, dest: Path) -> None:
         shutil.rmtree(backup, ignore_errors=True)
 
 
-def download_extension(
-    extension_id: str, dest: Path, *, prodversion: str = _STORE_PRODVERSION, timeout: float = 30.0
-) -> Path:
+def download_extension(extension_id: str, dest: Path, *, prodversion: str = _STORE_PRODVERSION, timeout: float = 30.0) -> Path:
     """Download an extension from the Chrome Web Store by id and unpack it.
 
     Fetches the CRX, strips its header and ``_metadata`` (Chrome refuses to load

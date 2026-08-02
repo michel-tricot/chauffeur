@@ -58,7 +58,4 @@ def resolve_user_agent(binary: Path, profile: Path) -> str:
             major = match.group(1)
     except (OSError, subprocess.SubprocessError):
         pass
-    return (
-        f"Mozilla/5.0 ({_fallback_platform_token()}) AppleWebKit/537.36 "
-        f"(KHTML, like Gecko) Chrome/{major}.0.0.0 Safari/537.36"
-    )
+    return f"Mozilla/5.0 ({_fallback_platform_token()}) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/{major}.0.0.0 Safari/537.36"

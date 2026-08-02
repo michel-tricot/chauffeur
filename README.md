@@ -296,11 +296,12 @@ Day-to-day commands:
 ```bash
 uv run pytest            # tests (no real browser needed; the CDP layer is faked)
 uv run ruff check .      # lint (add --fix to autofix)
+uv run ruff format .     # format (Markdown snippets are excluded; their aligned comments stay)
 uv run ty check          # type check (chauffeur/ only)
 uv run deptry .          # dependency check
 ```
 
-Lint, types, and tests run in CI across Python 3.12 to 3.14 and must pass
+Format, lint, types, and tests run in CI across Python 3.12 to 3.14 and must pass
 before a change lands. Run an example against a real browser:
 
 ```bash

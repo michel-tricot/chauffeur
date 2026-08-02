@@ -115,9 +115,7 @@ async def test_navigate_wait_tolerates_stop_racing_the_reply(tmp_path):
 
 async def test_evaluate_raises_jserror_on_page_exception(tmp_path):
     browser = _browser(tmp_path)
-    browser.cdp.replies["Runtime.evaluate"] = {
-        "exceptionDetails": {"exception": {"description": "ReferenceError: nope is not defined"}}
-    }
+    browser.cdp.replies["Runtime.evaluate"] = {"exceptionDetails": {"exception": {"description": "ReferenceError: nope is not defined"}}}
     with pytest.raises(JSError, match="nope is not defined"):
         await browser.evaluate("nope()")
 

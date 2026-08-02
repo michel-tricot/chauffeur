@@ -39,15 +39,7 @@ def _crx3(zip_bytes, header=b""):
 
 
 def _crx2(zip_bytes, pubkey=b"", sig=b""):
-    return (
-        b"Cr24"
-        + (2).to_bytes(4, "little")
-        + len(pubkey).to_bytes(4, "little")
-        + len(sig).to_bytes(4, "little")
-        + pubkey
-        + sig
-        + zip_bytes
-    )
+    return b"Cr24" + (2).to_bytes(4, "little") + len(pubkey).to_bytes(4, "little") + len(sig).to_bytes(4, "little") + pubkey + sig + zip_bytes
 
 
 def _fake_download(monkeypatch, crx_bytes, counter=None):
@@ -124,11 +116,7 @@ def test_build_refuses_source_inside_workdir(tmp_path):
 
 def test_add_file_creates_and_refuses_overwrite(tmp_path):
     src = _make_source(tmp_path)
-    spec = (
-        ExtensionSpec(src)
-        .add_file("content/inject.js", "console.log('hi');")
-        .add_file("data.bin", b"\x00\x01\x02")
-    )
+    spec = ExtensionSpec(src).add_file("content/inject.js", "console.log('hi');").add_file("data.bin", b"\x00\x01\x02")
     built = build_extension(spec, tmp_path / "work")
     assert (built / "content/inject.js").read_text() == "console.log('hi');"
     assert (built / "data.bin").read_bytes() == b"\x00\x01\x02"
@@ -136,9 +124,7 @@ def test_add_file_creates_and_refuses_overwrite(tmp_path):
     with pytest.raises(ValueError, match="already exists"):
         build_extension(ExtensionSpec(src).add_file("background.js", "x"), tmp_path / "work2")
 
-    over = build_extension(
-        ExtensionSpec(src).add_file("background.js", "replaced();", overwrite=True), tmp_path / "work3"
-    )
+    over = build_extension(ExtensionSpec(src).add_file("background.js", "replaced();", overwrite=True), tmp_path / "work3")
     assert (over / "background.js").read_text() == "replaced();"
 
 

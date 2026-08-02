@@ -2,7 +2,7 @@
 
 [project]
 name = "chauffeur"
-version = "0.14.0"
+version = "0.14.1"
 description = "Control a local Chromium-family browser: launch it your way, patch and load extensions, talk to it both ways"
 readme = "README.md"
 license = "MIT"
@@ -12,7 +12,16 @@ keywords = ["browser", "chrome", "cdp", "devtools", "extension", "automation"]
 classifiers = [
     "Development Status :: 3 - Alpha",
     "Intended Audience :: Developers",
+    "Framework :: AsyncIO",
+    "Operating System :: MacOS",
+    "Operating System :: POSIX :: Linux",
     "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3 :: Only",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Programming Language :: Python :: 3.14",
+    "Topic :: Internet :: WWW/HTTP :: Browsers",
+    "Topic :: Software Development :: Libraries :: Python Modules",
 ]
 dependencies = ["websockets>=12"]
 
@@ -41,8 +50,13 @@ testpaths = ["tests"]
 asyncio_mode = "auto"
 
 [tool.ruff]
-line-length = 120
+line-length = 150
 target-version = "py312"
+
+[tool.ruff.format]
+# Don't format code blocks in Markdown: README/docs snippets use column-aligned
+# trailing comments on purpose, and the formatter would collapse them.
+exclude = ["*.md"]
 
 [tool.ruff.lint]
 extend-select = [

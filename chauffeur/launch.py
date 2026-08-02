@@ -103,9 +103,7 @@ def _blank_page_uri(stack: contextlib.ExitStack) -> str:
     return blank.as_uri()
 
 
-def _prepare_pages(
-    spec: LaunchSpec, stack: contextlib.ExitStack, defer_page: bool
-) -> tuple[LaunchSpec, str | None, str | None]:
+def _prepare_pages(spec: LaunchSpec, stack: contextlib.ExitStack, defer_page: bool) -> tuple[LaunchSpec, str | None, str | None]:
     """Resolve spec.url to a plain URI string on a copy of the spec.
 
     A str is used verbatim; a Path/traversable becomes a file:// URI (packaged

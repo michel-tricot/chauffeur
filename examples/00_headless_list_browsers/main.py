@@ -1,6 +1,6 @@
 """List the Chromium-family browsers chauffeur can drive.
 
-    uv run examples/00_headless_list_browsers/main.py
+uv run examples/00_headless_list_browsers/main.py
 """
 
 from chauffeur import installed_browsers

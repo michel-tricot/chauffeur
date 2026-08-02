@@ -45,9 +45,7 @@ async def main() -> None:
 
         async with browser:
             # Browser -> Python: the page calls py_chauffeur.call and awaits the reply.
-            saved = await browser.evaluate(
-                "py_chauffeur.call('save_bookmark', {url: 'https://example.com', title: 'Example', tags: ['demo']})"
-            )
+            saved = await browser.evaluate("py_chauffeur.call('save_bookmark', {url: 'https://example.com', title: 'Example', tags: ['demo']})")
             print("page got:", saved)
             print("stats:", await browser.evaluate("py_chauffeur.call('stats')"))
 

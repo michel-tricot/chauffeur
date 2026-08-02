@@ -158,9 +158,7 @@ class Browser:
         )
         details = result.get("exceptionDetails")
         if details:
-            description = (details.get("exception") or {}).get("description") or details.get(
-                "text", "evaluation failed"
-            )
+            description = (details.get("exception") or {}).get("description") or details.get("text", "evaluation failed")
             raise JSError(description)
         return (result.get("result") or {}).get("value")
 

@@ -15,14 +15,16 @@ lifecycle.
 
 - Tests: `uv run pytest`
 - Lint: `uv run ruff check .` (autofix with `--fix`)
+- Format: `uv run ruff format .` (Markdown is excluded on purpose — README/docs
+  snippets use column-aligned trailing comments the formatter would collapse)
 - Types: `uv run ty check` (gates `chauffeur/` only; tests are excluded on
   purpose, since they stub internals)
 - Examples: `uv run examples/<name>/main.py`. Directories are numbered in
   reading order and tagged by kind: `*_headless_*` are safe to run
   unattended, `*_ui_*` open a real window and block until it is closed.
 
-All three checks must pass before a change is done. CI
-(`.github/workflows/ci.yml`) runs lint, types, deptry, and tests on
+All four checks must pass before a change is done. CI
+(`.github/workflows/ci.yml`) runs format, lint, types, deptry, and tests on
 Python 3.12 to 3.14; unit tests never need a browser, so they pass on bare
 runners.
 

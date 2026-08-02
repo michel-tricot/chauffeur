@@ -20,6 +20,8 @@ jobs:
           enable-cache: true
       - name: Install
         run: uv sync --dev
+      - name: Format
+        run: uv run ruff format --check .
       - name: Lint
         run: uv run ruff check .
       - name: Types
